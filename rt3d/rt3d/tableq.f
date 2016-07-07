@@ -323,6 +323,7 @@ c  parameters v0,vx,vy,vz
 c  call function to compute a single travel time and amplitude table
 c  this can be modified to compute multiple tables
 
+      use util_me
       implicit  none
 
       integer   util_len_r

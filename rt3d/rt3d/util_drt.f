@@ -1,38 +1,7 @@
 * Copyright (c) Colorado School of Mines, 2004.
 * All rights reserved.
 
-c23456789012345678901234567890123456789012345678901234567890123456789012
-      subroutine util_setr(n,x,x0)
-      implicit none
-      integer  i,n
-      real     x(1),x0
-      do i = 1 , n
-        x(i) = x0
-      enddo
-      return
-      end
 
-c23456789012345678901234567890123456789012345678901234567890123456789012
-      subroutine util_seti(n,x,x0)
-      implicit none
-      integer  i,n
-      integer  x(1),x0
-      do i = 1 , n
-        x(i) = x0
-      enddo
-      return
-      end
-
-c23456789012345678901234567890123456789012345678901234567890123456789012
-      subroutine util_lini(n,x,x0,dx)
-      implicit none
-      integer  i,n
-      integer  x(1),x0,dx
-      do i = 1 , n
-        x(i) = x0 + (i - 1 ) * dx
-      enddo
-      return
-      end
 							   
 c23456789012345678901234567890123456789012345678901234567890123456789012
       subroutine util_invert(n,x)

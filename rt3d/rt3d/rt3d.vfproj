@@ -29,5 +29,6 @@
 		<Filter Name="Source Files" Filter="f90;for;f;fpp;ftn;def;odl;idl">
 		<File RelativePath=".\ktime_3d_rayq.f"/>
 		<File RelativePath=".\tableq.f"/>
-		<File RelativePath=".\util_drt.f"/></Filter></Files>
+		<File RelativePath=".\util_drt.f"/>
+		<File RelativePath=".\util_me.f90"/></Filter></Files>
 	<Globals/></VisualStudioProject>
