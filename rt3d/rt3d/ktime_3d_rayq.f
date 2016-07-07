@@ -735,7 +735,7 @@ c  update index of tubes and rays that are inside the target region
  
       integer  i_err
       
-      write(*,*) "m_tube=", m_tube
+      write(*,*) "m_tube= ", m_tube
       write(*,*) "it_flag(1:10)=",it_flag(1:10)
       
       
