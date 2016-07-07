@@ -39,7 +39,27 @@ program Fortran
     ! Body of Fortran
     print *, 'Hello World'
        
+    call test2(10,1.0,2.0,3.0,4.0,5.0,6.0)
     
-end program Fortran
+    end program Fortran
 
+    
+    subroutine test1(n, pz,px,py, dvdz,dvdx,dvdy)
+        integer :: n
+        real :: pz(1),px(1),py(1)
+        real :: dvdz(1),dvdx(1), dvdy(1)
+    end subroutine 
+    
+    subroutine  test2(n, pz, px, py, dvdz, dvdx, dvdy)
+        integer :: n
+        real ::pz(*),px(*),py(*)
+        real :: dvdz(*), dvdx(*), dvdy(*)
+    end subroutine 
+    
+    subroutine test3(n, pz, px, py, dvdz, dvdx, dvdy)
+        integer :: n
+        real :: pz(n),px(n),py(n)
+        real :: dvdz(n), dvdx(n), dvdy(n)
+    end subroutine 
+    
  
