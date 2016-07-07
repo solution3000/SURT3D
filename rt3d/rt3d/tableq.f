@@ -1,6 +1,371 @@
 * Copyright (c) Colorado School of Mines, 2004.
 * All rights reserved.
 
+      module tableq_me
+      
+      use util_me
+      use ktime_me
+      
+      
+      contains 
+      
+      subroutine ktable_compute_1(x_src,y_src,z_src
+     1,n_dim,tim_type,dr_tab
+     1,ix_tab,nx_tab,x0_tab,dx_tab
+     1       ,ny_tab,y0_tab,dy_tab
+     1,iz_tab,nz_tab,z0_tab,dz_tab
+     1,m_xyz_tab
+     1,t_tab
+     1,na,a0,a1
+     1,nb,b0,b1
+     1,t_scale,dt_ray
+     1,t0_ray,t1_ray
+     1,dr_ray,inter_type,num_add
+     1,maxangle,m_ray
+     1,nx_vel,x0_vel,dx_vel
+     1,ny_vel,y0_vel,dy_vel
+     1,nz_vel,z0_vel,dz_vel
+     1,s_vel
+     1,npx_grid,npy_grid,npz_grid
+     1,m_work,work
+     1,stepsize
+     1,dtaccuracy
+     1,maxTime
+     1,anglex1
+     1,anglex2
+     1,angley1
+     1,angley2
+     1,angleDown
+     1,nullTTvalue
+     1,maxangle_p
+     1,amp
+     1,phase
+     1,q11_tab,q12_tab,q21_tab,q22_tab,p3_tab
+     1,outlog_file
+     1,outt_file,outamp_file
+     1,outpha_file,outq11_file,outq12_file
+     1,outq21_file,outq22_file
+     1,outa0_file,outb0_file,outa1_file,outb1_file
+     1,oute1x_file,oute1y_file,oute1z_file
+     1,oute2x_file,oute2y_file,oute2z_file
+     1,i_err)
+c  compute a single travel time and amplitude table
+c
+c  i = input o = output b = both
+c
+c i x_src = source x position in distance units
+c i y_src = source y position in distance units
+c i z_src = source z position in distance units
+c
+c i n_dim = dimensionality 2,3 are valid
+c i tim_type = traveltime caluclation method STRAIGHT, PRAY (character*8)
+c i dr_tab = raytracing spatial increment
+c
+c i ix_tab - travel time table x column start  array
+c i nx_tab - travel time table x column length array
+c i x0_tab - travel time table x column origin array
+c i dx_tab - travel time table x column increment
+c
+c i ny_tab - travel time table y column length
+c i y0_tab - travel time table y column origin
+c i dy_tab - travel time table y column increment
+c
+c i iz_tab - travel time table z column start  array
+c i nz_tab - travel time table z column length array
+c i z0_tab - travel time table z column origin array
+c i dz_tab - travel time table z column increment
+c
+c o t_tab - travel times in seconds
+c o amp   - amplitude at output grids
+c o phase - phase shift index at output grids
+c o q11_tab - Q component at output grids  
+c o q12_tab - Q component at output grids
+c o q21_tab - Q component at output grids
+c o q22_tab - Q component at output grids
+c o p3_tab  - slowness component at output grids
+c
+c i nx_vel = number of x nodes in slowness array
+c i x0_vel = x origin for slowness array
+c i dx_vel = x increment for slowness array
+c
+c i ny_vel = number of y nodes in slowness array
+c i y0_vel = y origin for slowness array
+c i dy_vel = y increment for slowness array
+c
+c i nz_vel = number of z nodes in slowness array
+c i z0_vel = z origin for slowness array
+c i dz_vel = z increment for slowness array
+c
+c i s_vel  = slowness array dimensioned real s_vel(nz_vel,nx_vel,ny_vel)
+c
+c i m_work = number of words in work array work
+c i work   = array dimensioned real work(n_work)
+c
+c o i_err  = error flag 0 = normal exit -1 = error exit
+c
+c  The travel time table is not necessarily rectangular.  Its shape
+c  is defined by
+c     1,ix_tab,nx_tab,x0_tab,dx_tab
+c     1       ,ny_tab,y0_tab,dy_tab
+c     1,iz_tab,nz_tab,z0_tab,dz_tab
+c
+c  travel time tables will consist of ny_tab y slices
+c  starting at y0_tab and incrementing by dy_tab
+c  each y slice may have a different number of x columns in it
+c  for the iy th y slice
+c  the first x column will be the ix_tab(iy) + 1 column
+c  the number of x columns will be nx_tab(iy)  and the first
+c  x value of that slice will be x0_tab(iy)
+c  the x incrment is constant for all y slices and is dx_tab
+c  the times for the ix th column of slice iy
+c  will start at sample iz_tab(ix_tab(iy)+ix) + 1 within the travel time
+c  that column will have nz_tab(ix_tab(iy)+ix)) depth points in it
+c  and start at depth z0_tab(ix_tab(iy)+ix)
+c  each x column may start at a different depth
+c  note x0_tab and y0_tab are measured from the source location
+c  z0_tab is measured from the global origin
+
+      implicit  none
+
+      integer   util_len_r
+
+      real      util_invert_1
+
+      integer   n_dim
+
+      real      x_src,y_src,z_src
+
+      real      dr_tab
+
+      integer   m_xyz_tab
+!DEC$ ATTRIBUTES NO_ARG_CHECK :: ix_tab,nx_tab
+      integer  ix_tab(1),nx_tab(1)
+      real     x0_tab(1),dx_tab
+
+      integer  ny_tab
+      real     y0_tab,dy_tab
+
+!DEC$ ATTRIBUTES NO_ARG_CHECK :: iz_tab,nz_tab
+      integer  iz_tab(1),nz_tab(1)
+      real     z0_tab(1),dz_tab
+
+      real     t_tab(m_xyz_tab)
+
+      integer  nx_vel
+      real     x0_vel,dx_vel
+      integer  ny_vel
+      real     y0_vel,dy_vel
+      integer  nz_vel
+      real     z0_vel,dz_vel
+      real     s_vel(nz_vel,nx_vel,ny_vel)
+
+      integer  na,nb
+      real     a0,a1,b0,b1
+
+      integer  t_scale,num_add,inter_type,m_ray
+      real     t0_ray,t1_ray,dt_ray,dr_ray,maxangle
+
+      integer npx_grid,npy_grid,npz_grid
+      integer   m_work
+      real      work(m_work)
+
+      real stepsize
+      real dtaccuracy
+      real maxTime
+      real anglex1
+      real anglex2
+      real angley1
+      real angley2
+      integer angleDown
+      real nullTTvalue
+      real maxangle_p
+      real phase(1)
+      real amp(1)
+      real q11_tab(1),q12_tab(1),q21_tab(1),q22_tab(1)
+      real p3_tab(1)
+
+      character outt_file*(*)
+      character outamp_file*(*)
+      character outpha_file*(*)
+      character outq11_file*(*)
+      character outq12_file*(*)
+      character outq21_file*(*)
+      character outq22_file*(*)
+      character outa0_file*(*)
+      character outb0_file*(*)
+      character outa1_file*(*)
+      character outb1_file*(*)
+      character oute1x_file*(*)
+      character oute1y_file*(*)
+      character oute1z_file*(*)
+      character oute2x_file*(*)
+      character oute2y_file*(*)
+      character oute2z_file*(*)
+      character outlog_file*(*)
+      integer   i_err
+
+      character tim_type*8
+
+      integer   n_xyz_tab
+      real      r_max,q_max
+      real      t_min,t_max
+      real      s_min,s_max
+      real      second
+      real      t_cpu_0, t_cpu_1
+
+c  initialize the error flag
+      i_err = 0
+
+c      t_cpu_0 = second()
+c 2d, 3d travel time tables
+      if (tim_type(1:1) .eq. 'E') then
+
+c  eikonal solver
+
+c       call ktime_3d_eikonal(x_src,y_src,z_src
+c    1,dr_tab
+c    1,ix_tab,nx_tab,x0_tab,dx_tab
+c    1       ,ny_tab,y0_tab,dy_tab
+c    1,iz_tab,nz_tab,z0_tab,dz_tab
+c    1,t_tab
+c    1,nx_vel,x0_vel,dx_vel
+c    1,ny_vel,y0_vel,dy_vel
+c    1,nz_vel,z0_vel,dz_vel
+c    1,s_vel
+c    1,m_work,work
+c    1,i_err)
+c       if (i_err .ne. 0) goto 999
+
+c  bisect traveltime solver 
+
+      elseif (tim_type(1:1) .eq. 'B') then ! Bisect
+ 
+c       call ktime_3d_bisect(x_src,y_src,z_src
+c    1,dr_tab
+c    1,ix_tab,nx_tab,x0_tab,dx_tab
+c    1       ,ny_tab,y0_tab,dy_tab
+c    1,iz_tab,nz_tab,z0_tab,dz_tab
+c    1,t_tab
+c    1,nx_vel,x0_vel,dx_vel
+c    1,ny_vel,y0_vel,dy_vel
+c    1,nz_vel,z0_vel,dz_vel
+c    1,s_vel
+c    1,m_work,work
+c    1,i_err)
+c       if (i_err .ne. 0) goto 999
+
+c  shell for Stork's code
+c     elseif (tim_type(1:4) .eq. 'PRAY') then ! Paraxial raytrace
+
+c       call ktime_3d_pray_cs(x_src,y_src,z_src
+c    1,dr_tab
+c    1,ix_tab,nx_tab,x0_tab,dx_tab
+c    1       ,ny_tab,y0_tab,dy_tab
+c    1,iz_tab,nz_tab,z0_tab,dz_tab
+c    1,t_tab
+c    1,nx_vel,x0_vel,dx_vel
+c    1,ny_vel,y0_vel,dy_vel
+c    1,nz_vel,z0_vel,dz_vel
+c    1,s_vel
+c    1,npx_grid,npy_grid,npz_grid
+c    1,m_work
+c    1,work
+c    1,stepsize
+c    1,dtaccuracy
+c    1,maxTime
+c    1,anglex1
+c    1,anglex2
+c    1,angley1
+c    1,angley2
+c    1,angleDown
+c    1,nullTTvalue
+c    1,maxangle_p
+c    1,phase
+c    1,amp
+c    1,phase_tmp
+c    1,out3_file,out4_file
+c    1,i_err)
+c       if (i_err .ne. 0) goto 999
+
+      elseif (tim_type(1:4) .eq. 'DRAY') then ! Dynamic raytrace
+
+        call ktime_3d_raytrace_2(x_src,y_src,z_src
+     1,dr_tab
+     1,ix_tab,nx_tab,x0_tab,dx_tab
+     1       ,ny_tab,y0_tab,dy_tab
+     1,iz_tab,nz_tab,z0_tab,dz_tab
+     1,t_tab,amp,phase
+     1,q11_tab,q12_tab,q21_tab,q22_tab,p3_tab
+     1,nx_vel,x0_vel,dx_vel
+     1,ny_vel,y0_vel,dy_vel
+     1,nz_vel,z0_vel,dz_vel
+     1,s_vel
+     1,na,a0,a1
+     1,nb,b0,b1
+     1,t_scale,dt_ray
+     1,t0_ray,t1_ray
+     1,dr_ray,inter_type,num_add
+     1,maxangle,m_ray
+     1,m_work
+     1,work
+     1,outt_file,outamp_file
+     1,outpha_file,outq11_file,outq12_file
+     1,outq21_file,outq22_file
+     1,outa0_file,outb0_file,outa1_file,outb1_file
+     1,oute1x_file,oute1y_file,oute1z_file
+     1,oute2x_file,oute2y_file,oute2z_file
+     1,i_err)
+        if (i_err .ne. 0) goto 999
+
+      else    ! if (tim_type(1:1) .eq. 'E') then
+
+        print'('' error in ktable_compute_1 tim_type= '',a8)'
+     1,tim_type
+        goto 999
+
+      endif    ! if (tim_type(1:1) .eq. 'S') then
+
+c      t_cpu_1 = second()
+c convert slowness to velocity
+c     if (tim_type(1:1) .eq. 'E' .or.
+c    1 tim_type(1:1) .eq. 'B' .or. 
+c    1 tim_type(1:3) .eq. 'DRAY')  then
+c        call util_invert(nx_vel*ny_vel*nz_vel,s_vel)
+c     endif !if (tim_type(1:1) .eq. 'E')  then
+c
+c  max distance from source
+c     r_max    = sqrt(
+c    1                                      x0_tab(1)       **2
+c    1              +                       y0_tab          **2
+c    1              + ((nz_tab(1)-1)*dz_tab+z0_tab(1)-z_src)**2
+c    1               )
+
+c  max travel time
+c     q_max = r_max / s_vel(1,1,1)
+
+c  get min, max velocity(slowness) s_min here is v_min
+c     call util_min_max(s_min,s_max,nx_vel*ny_vel*nz_vel,s_vel)
+
+c  get min, max travel time
+c     n_xyz_tab = iz_tab(ix_tab(ny_tab)+nx_tab(ny_tab))
+c    1          + nz_tab(ix_tab(ny_tab)+nx_tab(ny_tab))
+c     call util_min_max(t_min,t_max,n_xyz_tab           ,t_tab)
+
+      print*,' computational cost in building the table:'
+     1,t_cpu_1-t_cpu_0
+
+      return
+
+  999 continue
+      print'('' error in ktable_compute_1'')'
+      i_err = -1
+      return
+
+      end subroutine 
+      end module 
+
+
+
       program table
 c  test program to compute a single travel/amplitude time table
 c  you should be able to compile and run this as a stand alone program
@@ -29,6 +394,8 @@ c y0_vel		initial position of velocity distribution
 c z0_vel		initial position of velocity distribution 
 c 
 
+      use tableq_me
+      
       implicit  none
 
       integer   util_len_r
@@ -323,7 +690,8 @@ c  parameters v0,vx,vy,vz
 c  call function to compute a single travel time and amplitude table
 c  this can be modified to compute multiple tables
 
-      use util_me
+      use tableq_me
+      
       implicit  none
 
       integer   util_len_r
@@ -645,358 +1013,7 @@ c  compute a single travel time and amplitude table
       end
 
 c23456789012345678901234567890123456789012345678901234567890123456789012
-      subroutine ktable_compute_1(x_src,y_src,z_src
-     1,n_dim,tim_type,dr_tab
-     1,ix_tab,nx_tab,x0_tab,dx_tab
-     1       ,ny_tab,y0_tab,dy_tab
-     1,iz_tab,nz_tab,z0_tab,dz_tab
-     1,m_xyz_tab
-     1,t_tab
-     1,na,a0,a1
-     1,nb,b0,b1
-     1,t_scale,dt_ray
-     1,t0_ray,t1_ray
-     1,dr_ray,inter_type,num_add
-     1,maxangle,m_ray
-     1,nx_vel,x0_vel,dx_vel
-     1,ny_vel,y0_vel,dy_vel
-     1,nz_vel,z0_vel,dz_vel
-     1,s_vel
-     1,npx_grid,npy_grid,npz_grid
-     1,m_work,work
-     1,stepsize
-     1,dtaccuracy
-     1,maxTime
-     1,anglex1
-     1,anglex2
-     1,angley1
-     1,angley2
-     1,angleDown
-     1,nullTTvalue
-     1,maxangle_p
-     1,amp
-     1,phase
-     1,q11_tab,q12_tab,q21_tab,q22_tab,p3_tab
-     1,outlog_file
-     1,outt_file,outamp_file
-     1,outpha_file,outq11_file,outq12_file
-     1,outq21_file,outq22_file
-     1,outa0_file,outb0_file,outa1_file,outb1_file
-     1,oute1x_file,oute1y_file,oute1z_file
-     1,oute2x_file,oute2y_file,oute2z_file
-     1,i_err)
-c  compute a single travel time and amplitude table
-c
-c  i = input o = output b = both
-c
-c i x_src = source x position in distance units
-c i y_src = source y position in distance units
-c i z_src = source z position in distance units
-c
-c i n_dim = dimensionality 2,3 are valid
-c i tim_type = traveltime caluclation method STRAIGHT, PRAY (character*8)
-c i dr_tab = raytracing spatial increment
-c
-c i ix_tab - travel time table x column start  array
-c i nx_tab - travel time table x column length array
-c i x0_tab - travel time table x column origin array
-c i dx_tab - travel time table x column increment
-c
-c i ny_tab - travel time table y column length
-c i y0_tab - travel time table y column origin
-c i dy_tab - travel time table y column increment
-c
-c i iz_tab - travel time table z column start  array
-c i nz_tab - travel time table z column length array
-c i z0_tab - travel time table z column origin array
-c i dz_tab - travel time table z column increment
-c
-c o t_tab - travel times in seconds
-c o amp   - amplitude at output grids
-c o phase - phase shift index at output grids
-c o q11_tab - Q component at output grids  
-c o q12_tab - Q component at output grids
-c o q21_tab - Q component at output grids
-c o q22_tab - Q component at output grids
-c o p3_tab  - slowness component at output grids
-c
-c i nx_vel = number of x nodes in slowness array
-c i x0_vel = x origin for slowness array
-c i dx_vel = x increment for slowness array
-c
-c i ny_vel = number of y nodes in slowness array
-c i y0_vel = y origin for slowness array
-c i dy_vel = y increment for slowness array
-c
-c i nz_vel = number of z nodes in slowness array
-c i z0_vel = z origin for slowness array
-c i dz_vel = z increment for slowness array
-c
-c i s_vel  = slowness array dimensioned real s_vel(nz_vel,nx_vel,ny_vel)
-c
-c i m_work = number of words in work array work
-c i work   = array dimensioned real work(n_work)
-c
-c o i_err  = error flag 0 = normal exit -1 = error exit
-c
-c  The travel time table is not necessarily rectangular.  Its shape
-c  is defined by
-c     1,ix_tab,nx_tab,x0_tab,dx_tab
-c     1       ,ny_tab,y0_tab,dy_tab
-c     1,iz_tab,nz_tab,z0_tab,dz_tab
-c
-c  travel time tables will consist of ny_tab y slices
-c  starting at y0_tab and incrementing by dy_tab
-c  each y slice may have a different number of x columns in it
-c  for the iy th y slice
-c  the first x column will be the ix_tab(iy) + 1 column
-c  the number of x columns will be nx_tab(iy)  and the first
-c  x value of that slice will be x0_tab(iy)
-c  the x incrment is constant for all y slices and is dx_tab
-c  the times for the ix th column of slice iy
-c  will start at sample iz_tab(ix_tab(iy)+ix) + 1 within the travel time
-c  that column will have nz_tab(ix_tab(iy)+ix)) depth points in it
-c  and start at depth z0_tab(ix_tab(iy)+ix)
-c  each x column may start at a different depth
-c  note x0_tab and y0_tab are measured from the source location
-c  z0_tab is measured from the global origin
 
-      implicit  none
-
-      integer   util_len_r
-
-      real      util_invert_1
-
-      integer   n_dim
-
-      real      x_src,y_src,z_src
-
-      real      dr_tab
-
-      integer   m_xyz_tab
-
-      integer  ix_tab(1),nx_tab(1)
-      real     x0_tab(1),dx_tab
-
-      integer  ny_tab
-      real     y0_tab,dy_tab
-
-      integer  iz_tab(1),nz_tab(1)
-      real     z0_tab(1),dz_tab
-
-      real     t_tab(m_xyz_tab)
-
-      integer  nx_vel
-      real     x0_vel,dx_vel
-      integer  ny_vel
-      real     y0_vel,dy_vel
-      integer  nz_vel
-      real     z0_vel,dz_vel
-      real     s_vel(nz_vel,nx_vel,ny_vel)
-
-      integer  na,nb
-      real     a0,a1,b0,b1
-
-      integer  t_scale,num_add,inter_type,m_ray
-      real     t0_ray,t1_ray,dt_ray,dr_ray,maxangle
-
-      integer npx_grid,npy_grid,npz_grid
-      integer   m_work
-      real      work(m_work)
-
-      real stepsize
-      real dtaccuracy
-      real maxTime
-      real anglex1
-      real anglex2
-      real angley1
-      real angley2
-      integer angleDown
-      real nullTTvalue
-      real maxangle_p
-      real phase(1)
-      real amp(1)
-      real q11_tab(1),q12_tab(1),q21_tab(1),q22_tab(1)
-      real p3_tab(1)
-
-      character outt_file*(*)
-      character outamp_file*(*)
-      character outpha_file*(*)
-      character outq11_file*(*)
-      character outq12_file*(*)
-      character outq21_file*(*)
-      character outq22_file*(*)
-      character outa0_file*(*)
-      character outb0_file*(*)
-      character outa1_file*(*)
-      character outb1_file*(*)
-      character oute1x_file*(*)
-      character oute1y_file*(*)
-      character oute1z_file*(*)
-      character oute2x_file*(*)
-      character oute2y_file*(*)
-      character oute2z_file*(*)
-      character outlog_file*(*)
-      integer   i_err
-
-      character tim_type*8
-
-      integer   n_xyz_tab
-      real      r_max,q_max
-      real      t_min,t_max
-      real      s_min,s_max
-      real      second
-      real      t_cpu_0, t_cpu_1
-
-c  initialize the error flag
-      i_err = 0
-
-c      t_cpu_0 = second()
-c 2d, 3d travel time tables
-      if (tim_type(1:1) .eq. 'E') then
-
-c  eikonal solver
-
-c       call ktime_3d_eikonal(x_src,y_src,z_src
-c    1,dr_tab
-c    1,ix_tab,nx_tab,x0_tab,dx_tab
-c    1       ,ny_tab,y0_tab,dy_tab
-c    1,iz_tab,nz_tab,z0_tab,dz_tab
-c    1,t_tab
-c    1,nx_vel,x0_vel,dx_vel
-c    1,ny_vel,y0_vel,dy_vel
-c    1,nz_vel,z0_vel,dz_vel
-c    1,s_vel
-c    1,m_work,work
-c    1,i_err)
-c       if (i_err .ne. 0) goto 999
-
-c  bisect traveltime solver 
-
-      elseif (tim_type(1:1) .eq. 'B') then ! Bisect
- 
-c       call ktime_3d_bisect(x_src,y_src,z_src
-c    1,dr_tab
-c    1,ix_tab,nx_tab,x0_tab,dx_tab
-c    1       ,ny_tab,y0_tab,dy_tab
-c    1,iz_tab,nz_tab,z0_tab,dz_tab
-c    1,t_tab
-c    1,nx_vel,x0_vel,dx_vel
-c    1,ny_vel,y0_vel,dy_vel
-c    1,nz_vel,z0_vel,dz_vel
-c    1,s_vel
-c    1,m_work,work
-c    1,i_err)
-c       if (i_err .ne. 0) goto 999
-
-c  shell for Stork's code
-c     elseif (tim_type(1:4) .eq. 'PRAY') then ! Paraxial raytrace
-
-c       call ktime_3d_pray_cs(x_src,y_src,z_src
-c    1,dr_tab
-c    1,ix_tab,nx_tab,x0_tab,dx_tab
-c    1       ,ny_tab,y0_tab,dy_tab
-c    1,iz_tab,nz_tab,z0_tab,dz_tab
-c    1,t_tab
-c    1,nx_vel,x0_vel,dx_vel
-c    1,ny_vel,y0_vel,dy_vel
-c    1,nz_vel,z0_vel,dz_vel
-c    1,s_vel
-c    1,npx_grid,npy_grid,npz_grid
-c    1,m_work
-c    1,work
-c    1,stepsize
-c    1,dtaccuracy
-c    1,maxTime
-c    1,anglex1
-c    1,anglex2
-c    1,angley1
-c    1,angley2
-c    1,angleDown
-c    1,nullTTvalue
-c    1,maxangle_p
-c    1,phase
-c    1,amp
-c    1,phase_tmp
-c    1,out3_file,out4_file
-c    1,i_err)
-c       if (i_err .ne. 0) goto 999
-
-      elseif (tim_type(1:4) .eq. 'DRAY') then ! Dynamic raytrace
-
-        call ktime_3d_raytrace_2(x_src,y_src,z_src
-     1,dr_tab
-     1,ix_tab,nx_tab,x0_tab,dx_tab
-     1       ,ny_tab,y0_tab,dy_tab
-     1,iz_tab,nz_tab,z0_tab,dz_tab
-     1,t_tab,amp,phase
-     1,q11_tab,q12_tab,q21_tab,q22_tab,p3_tab
-     1,nx_vel,x0_vel,dx_vel
-     1,ny_vel,y0_vel,dy_vel
-     1,nz_vel,z0_vel,dz_vel
-     1,s_vel
-     1,na,a0,a1
-     1,nb,b0,b1
-     1,t_scale,dt_ray
-     1,t0_ray,t1_ray
-     1,dr_ray,inter_type,num_add
-     1,maxangle,m_ray
-     1,m_work
-     1,work
-     1,outt_file,outamp_file
-     1,outpha_file,outq11_file,outq12_file
-     1,outq21_file,outq22_file
-     1,outa0_file,outb0_file,outa1_file,outb1_file
-     1,oute1x_file,oute1y_file,oute1z_file
-     1,oute2x_file,oute2y_file,oute2z_file
-     1,i_err)
-        if (i_err .ne. 0) goto 999
-
-      else    ! if (tim_type(1:1) .eq. 'E') then
-
-        print'('' error in ktable_compute_1 tim_type= '',a8)'
-     1,tim_type
-        goto 999
-
-      endif    ! if (tim_type(1:1) .eq. 'S') then
-
-c      t_cpu_1 = second()
-c convert slowness to velocity
-c     if (tim_type(1:1) .eq. 'E' .or.
-c    1 tim_type(1:1) .eq. 'B' .or. 
-c    1 tim_type(1:3) .eq. 'DRAY')  then
-c        call util_invert(nx_vel*ny_vel*nz_vel,s_vel)
-c     endif !if (tim_type(1:1) .eq. 'E')  then
-c
-c  max distance from source
-c     r_max    = sqrt(
-c    1                                      x0_tab(1)       **2
-c    1              +                       y0_tab          **2
-c    1              + ((nz_tab(1)-1)*dz_tab+z0_tab(1)-z_src)**2
-c    1               )
-
-c  max travel time
-c     q_max = r_max / s_vel(1,1,1)
-
-c  get min, max velocity(slowness) s_min here is v_min
-c     call util_min_max(s_min,s_max,nx_vel*ny_vel*nz_vel,s_vel)
-
-c  get min, max travel time
-c     n_xyz_tab = iz_tab(ix_tab(ny_tab)+nx_tab(ny_tab))
-c    1          + nz_tab(ix_tab(ny_tab)+nx_tab(ny_tab))
-c     call util_min_max(t_min,t_max,n_xyz_tab           ,t_tab)
-
-      print*,' computational cost in building the table:'
-     1,t_cpu_1-t_cpu_0
-
-      return
-
-  999 continue
-      print'('' error in ktable_compute_1'')'
-      i_err = -1
-      return
-
-      end
 
 c23456789012345678901234567890123456789012345678901234567890123456789012
       subroutine read_input(

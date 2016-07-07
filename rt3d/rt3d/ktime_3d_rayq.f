@@ -1,652 +1,12 @@
 * Copyright (c) Colorado School of Mines, 2004.
 * All rights reserved.
-
-c23456789012345678901234567890123456789012345678901234567890123456789012
-      subroutine ktime_3d_raytrace_2(xs,ys,zs
-     1,dr_tab
-     1,ix_tab,nx_tab,x0_tab,dx_tab
-     1       ,ny_tab,y0_tab,dy_tab
-     1,iz_tab,nz_tab,z0_tab,dz_tab
-     1,t_tab,amp_tab,phase_tab
-     1,q11_tab,q12_tab,q21_tab,q22_tab,p3_tab
-     1,nx_vel,x0_vel,dx_vel
-     1,ny_vel,y0_vel,dy_vel
-     1,nz_vel,z0_vel,dz_vel
-     1,vel
-     1,na_ray,a0,a1
-     1,nb_ray,b0,b1
-     1,t_scale,dt_ray
-     1,t0_ray,t1_ray
-     1,dr_ray,inter_type,num_add
-     1,maxangle,m_ray
-     1,m_work,work
-     1,outt_file,outamp_file
-     1,outpha_file,outq11_file,outq12_file
-     1,outq21_file,outq22_file
-     1,outa0_file,outb0_file,outa1_file,outb1_file
-     1,oute1x_file,oute1y_file,oute1z_file
-     1,oute2x_file,oute2y_file,oute2z_file
-     1,i_err)
-c  compute a signle travel time/amplitude table
-c  compute velocity derivatives
-
-      implicit  none
- 
-      character outt_file*(*)
-      character outamp_file*(*)
-      character outpha_file*(*)
-      character outq11_file*(*)
-      character outq12_file*(*)
-      character outq21_file*(*)
-      character outq22_file*(*)
-      character outa0_file*(*)
-      character outb0_file*(*)
-      character outa1_file*(*)
-      character outb1_file*(*)
-      character oute1x_file*(*)
-      character oute1y_file*(*)
-      character oute1z_file*(*)
-      character oute2x_file*(*)
-      character oute2y_file*(*)
-      character oute2z_file*(*)
-
-      real     xs,ys,zs
- 
-      integer  ix_tab(1),nx_tab(1)
-      real     x0_tab(1),dx_tab
- 
-      integer  ny_tab
-      real     y0_tab,dy_tab
- 
-      integer  iz_tab(1),nz_tab(1)
-      real     z0_tab(1),dz_tab
- 
-      real     t_tab(1),amp_tab(1)
-      real  phase_tab(1)
-      real     q11_tab(1),q12_tab(1),q21_tab(1),q22_tab(1)
-      real     p3_tab(1)
- 
-      integer  nx_vel
-      real     x0_vel,dx_vel
- 
-      integer  ny_vel
-      real     y0_vel,dy_vel
-      integer  nz_vel
-      real     z0_vel,dz_vel
- 
-      real     vel(nz_vel,nx_vel,ny_vel)
-
-      integer  nx_vel_rt
-      real     x0_vel_rt,dx_vel_rt,x1_vel_rt
- 
-      integer  ny_vel_rt
-      real     y0_vel_rt,dy_vel_rt,y1_vel_rt
- 
-      integer  nz_vel_rt
-      real     z0_vel_rt,dz_vel_rt
- 
-      real     dr_tab
- 
-      integer  na_ray, nb_ray
-      real     a0, a1, b0, b1
-
-      integer  t_scale,num_add,inter_type,m_ray
-      real     t0_ray,t1_ray,dt_ray,dr_ray,maxangle
-
-      integer  m_work
-      real     work(m_work)
- 
-      real nullTTvalue
-      parameter (nullTTvalue=0.0)
-      integer  n_xyz_tab
- 
-      integer i_work_i,i_work_n
- 
-      integer   nx_tab_min,nx_tab_max
-      integer   nz_tab_min,nz_tab_max
- 
-      real    x0_tab_min, x0_tab_max
-      real    z0_tab_min, z0_tab_max
- 
-      integer i_err,i,j,k
- 
-      real    second,t_cpu_1, t_cpu_2
-c  work space pointers
-      integer  i_work,n_work
-      integer  j_vel, n_j_vel
- 
-      integer  ix, iy
- 
-c     t_cpu_1 = second()
- 
-      call util_min_max_i(nx_tab_min,nx_tab_max,ny_tab,nx_tab)
-      call util_min_max_i(nz_tab_min,nz_tab_max
-     1,ix_tab(ny_tab)+nx_tab(ny_tab),nz_tab)
- 
-      call util_min_max(x0_tab_min,x0_tab_max,ny_tab,x0_tab)
-      call util_min_max(z0_tab_min,z0_tab_max
-     1,ix_tab(ny_tab)+nx_tab(ny_tab),z0_tab)
- 
-c allocate extra space for the first and second derivatives of velocity field
-c all together work(j_vel) has 10 times space of the original velocity array
-c (nz_vel,nx_vel,ny_vel,10)
-c 1=velocity, 2=dv/dx, 3=dv/dy, 4=dv/dz,
-c 5=ddv2/dxdy, 6=ddv2/dxdz, 7=ddv2/dydz,
-c 8=ddv2/dxdx, 9=ddv2/dydy, 10=ddv2/dzdz
-
-      ix = (x0_tab_min +xs - x0_vel)/dx_vel
-      x0_vel_rt = x0_vel + (ix -1 ) * dx_vel
-      x0_vel_rt = max(x0_vel_rt,x0_vel)
-      ix = (x0_tab_min+dx_tab*(nx_tab_max-1) + xs - x0_vel_rt )/dx_vel
-      x1_vel_rt = x0_vel_rt + ix * dx_vel
-      x1_vel_rt = min(x1_vel_rt, x0_vel+(nx_vel-1)*dx_vel)
-      nx_vel_rt = (x1_vel_rt - x0_vel_rt)/dx_vel + 1
-      if (nx_vel_rt .le. 0 ) then
-          x0_vel_rt = x0_vel
-          nx_vel_rt = nx_vel
-      endif !if (nx_vel_rt .le. 0 ) then
-      dx_vel_rt = dx_vel
-
-      iy = (y0_tab +ys - y0_vel)/dy_vel
-      y0_vel_rt = y0_vel + (iy -1 ) * dy_vel
-      y0_vel_rt = max(y0_vel_rt,y0_vel)
-      iy = (y0_tab+dy_tab*(ny_tab-1) + ys - y0_vel_rt )/dy_vel
-      y1_vel_rt = y0_vel_rt + iy * dy_vel
-      y1_vel_rt = min(y1_vel_rt, y0_vel+(ny_vel-1)*dy_vel)
-      ny_vel_rt = (y1_vel_rt - y0_vel_rt)/dy_vel + 1
-      if (ny_vel_rt .le. 0 ) then
-          y0_vel_rt = y0_vel
-          ny_vel_rt = ny_vel
-      endif !if (nx_vel_rt .le. 0 ) then
-      dy_vel_rt = dy_vel
- 
-      z0_vel_rt = z0_vel
-      nz_vel_rt = nz_vel
-      dz_vel_rt = dz_vel
-
-      x0_vel_rt = x0_vel
-      nx_vel_rt = nx_vel
-      dx_vel_rt = dx_vel
       
-      y0_vel_rt = y0_vel
-      ny_vel_rt = ny_vel
-      dy_vel_rt = dy_vel
+      module ktime_me
       
-      n_j_vel = nx_vel_rt * ny_vel_rt * nz_vel_rt * 10
-      call util_wors(i_work_i,i_work_n,m_work)
-      call util_work(i_work_i,i_work_n,j_vel ,n_j_vel )
-      call util_worc(i_work_i,i_work_n,i_err)
-      if (i_err .ne. 0) goto 999
-
-      call util_worl(i_work_i,i_work_n,n_work)
-      call util_work(i_work_i,i_work_n,i_work,n_work)
-
-c  compute velocity derivatives
- 
-          call util_invert(nx_vel*ny_vel*nz_vel,vel) !convert slowness to v*
- 
-          call ktime_3d_compute_v_grad_coef(
-     1 nz_vel,z0_vel,dz_vel
-     1,nx_vel,x0_vel,dx_vel
-     1,ny_vel,y0_vel,dy_vel
-     1,vel
-     1,nz_vel_rt,z0_vel_rt,dz_vel_rt
-     1,nx_vel_rt,x0_vel_rt,dx_vel_rt
-     1,ny_vel_rt,y0_vel_rt,dy_vel_rt
-     1,work(j_vel)
-     1)
-          call util_invert(nx_vel*ny_vel*nz_vel,vel) !convert slowness to v*
- 
-c  initialize the travel time table array to a large number (100.)
-      n_xyz_tab = iz_tab(ix_tab(ny_tab)+nx_tab(ny_tab))
-     1          + nz_tab(ix_tab(ny_tab)+nx_tab(ny_tab))
-      call util_setr(n_xyz_tab,t_tab,0.)
-      call util_setr(n_xyz_tab,amp_tab,100.)
-      call util_setr(n_xyz_tab,phase_tab,0.0)
-      call util_setr(n_xyz_tab,q11_tab,0.)
-      call util_setr(n_xyz_tab,q12_tab,0.)
-      call util_setr(n_xyz_tab,q21_tab,0.)
-      call util_setr(n_xyz_tab,q22_tab,0.)
-      call util_setr(n_xyz_tab,p3_tab,1.)
- 
-c compute the ray data through wavefront construction dynamic ray tracing
-
-      print*,' max memory in ktime_3d_raytrace:',m_work
-      print*,' max memory pass into the next  :',n_work
-
-         call ktime_3d_raytrace_1(xs,ys,zs
-     1,dr_tab
-     1,ix_tab,nx_tab,x0_tab,dx_tab
-     1       ,ny_tab,y0_tab,dy_tab
-     1,iz_tab,nz_tab,z0_tab,dz_tab
-     1,t_tab,amp_tab,phase_tab
-     1,q11_tab,q12_tab,q21_tab,q22_tab,p3_tab
-     1,nx_vel_rt,x0_vel_rt,dx_vel_rt
-     1,ny_vel_rt,y0_vel_rt,dy_vel_rt
-     1,nz_vel_rt,z0_vel_rt,dz_vel_rt
-     1,work(j_vel)
-     1,na_ray,nb_ray
-     1,a0,a1,b0,b1
-     1,t_scale,dt_ray
-     1,t0_ray,t1_ray
-     1,dr_ray,inter_type,num_add
-     1,maxangle,m_ray
-     1,n_work,work(i_work)
-     1,outt_file,outamp_file
-     1,outpha_file,outq11_file,outq12_file
-     1,outq21_file,outq22_file
-     1,outa0_file,outb0_file,outa1_file,outb1_file
-     1,oute1x_file,oute1y_file,oute1z_file
-     1,oute2x_file,oute2y_file,oute2z_file
-     1,i_err)
-        if (i_err .ne. 0) goto 999
-
-c     t_cpu_2 = second()
-
-c     print*,'time cost in ktime_3d_raytrace:',t_cpu_2-t_cpu_1
-c     print*,' max memory in ktime_3d_raytrace:',m_work
-c     print*,' max memory pass into the next  :',n_work
-
+      use util_me
       
-      return
-  999 continue
-      print'('' error in ktime_3d_raytrace'')'
-      i_err = -1
-      return
- 
-      end
-
-c23456789012345678901234567890123456789012345678901234567890123456789012
-      subroutine ktime_3d_raytrace_memory(n_work)
-c  initalize the number of word savaliable to n_work
-c  and the pointer to 1
-      implicit none
-      integer n_work
-
-      n_work = 8000000
-
-      print'('' in ktime_3d_raytrace_memory: n_work='',i10)',n_work 
-      return
-      end
-c&&&
-c12345678901234567890123456789012345678901234567890123456789012345678901_
-      subroutine ktime_3d_raytrace_1(xs,ys,zs
-     1,dr_tab
-     1,ix_tab,nx_tab,x0_tab,dx_tab
-     1       ,ny_tab,y0_tab,dy_tab
-     1,iz_tab,nz_tab,z0_tab,dz_tab
-     1,t_tab,amp_tab,phase_tab
-     1,q11_tab,q12_tab,q21_tab,q22_tab,p3_tab
-     1,nx_vel,x0_vel,dx_vel
-     1,ny_vel,y0_vel,dy_vel
-     1,nz_vel,z0_vel,dz_vel
-     1,vel
-     1,na_ray,nb_ray
-     1,a0_ray,a1_ray
-     1,b0_ray,b1_ray
-     1,t_scale,dt_ray
-     1,t0_ray,t1_ray
-     1,dr_ray,inter_type,num_add
-     1,maxangle,m_ray
-     1,m_work,work
-     1,outt_file,outamp_file
-     1,outpha_file,outq11_file,outq12_file
-     1,outq21_file,outq22_file
-     1,outa0_file,outb0_file,outa1_file,outb1_file
-     1,oute1x_file,oute1y_file,oute1z_file
-     1,oute2x_file,oute2y_file,oute2z_file
-     1,i_err)
-c  compute a signle travel time/amplitude table
-c  allocate various work memory units
-
-      implicit none
-
-      character outt_file*(*)
-      character outamp_file*(*)
-      character outpha_file*(*)
-      character outq11_file*(*)
-      character outq12_file*(*)
-      character outq21_file*(*)
-      character outq22_file*(*)
-      character outa0_file*(*)
-      character outb0_file*(*)
-      character outa1_file*(*)
-      character outb1_file*(*)
-      character oute1x_file*(*)
-      character oute1y_file*(*)
-      character oute1z_file*(*)
-      character oute2x_file*(*)
-      character oute2y_file*(*)
-      character oute2z_file*(*)
-
-      real     xs,ys,zs,v0,vx,vy,vz
-
-      integer  ix_tab(1),nx_tab(1)
-      real     x0_tab(1),dx_tab
-
-      integer            ny_tab
-      real     y0_tab,dy_tab
-
-      integer  iz_tab(1),nz_tab(1)
-      real     z0_tab(1),dz_tab
-
-      real     t_tab(1), amp_tab(1)
-      real     phase_tab(1)
-      real     q11_tab(1),q12_tab(1),q21_tab(1),q22_tab(1)
-      real     p3_tab(1)
-
-      integer  nx_vel
-      real     x0_vel,dx_vel
-
-      integer  ny_vel
-      real     y0_vel,dy_vel
-
-      integer  nz_vel
-      real     z0_vel,dz_vel
-
-      real     vel(nz_vel,nx_vel,ny_vel,10)
-
-      integer  na_ray,nb_ray
-      real     dr_ray
-
-      real     dr_tab
-
-      integer  m_work
-      real     work(m_work)
-
-      integer  i_err
-
-      real     a0_ray,da_ray,a1_ray
-
-      real     b0_ray,db_ray,b1_ray
-
-      integer  mt_ray
-      real     t0_ray,dt_ray,t1_ray
-
-      real     ds_ray
-      real     v_min,v_max
-
-      integer  m_xyz_tab
-      integer  m_ray
-      integer  m_tube
-      integer  mt_micro
-
-c parameter for scaling the micro_mt
-      integer  t_scale
-
-c  work space pointers
-      integer  i_a_tab,   n_a_tab
-      integer  i_b_tab,   n_b_tab
-      integer  i_e2z_tab, n_e2z_tab
-      integer  i_a_ray   ,n_a_ray 
-      integer  i_b_ray   ,n_b_ray 
-      integer  i_x_ray   ,n_x_ray 
-      integer  i_y_ray   ,n_y_ray 
-      integer  i_z_ray   ,n_z_ray 
-      integer  i_px_ray  ,n_px_ray
-      integer  i_py_ray  ,n_py_ray
-      integer  i_pz_ray  ,n_pz_ray
-      integer  i_tx_ray  ,n_tx_ray
-      integer  i_ty_ray  ,n_ty_ray
-      integer  i_tz_ray  ,n_tz_ray
-      integer  i_e1x_ray ,n_e1x_ray
-      integer  i_e1y_ray ,n_e1y_ray
-      integer  i_e1z_ray ,n_e1z_ray
-      integer  i_e2x_ray ,n_e2x_ray
-      integer  i_e2y_ray ,n_e2y_ray
-      integer  i_e2z_ray ,n_e2z_ray
-      integer  i_s_ray   ,n_s_ray 
-      integer  i_s_tab   ,n_s_tab
-      integer  i_v_ray   ,n_v_ray
-      integer  i_v_ray_tmp,n_v_ray_tmp
-      integer  i_vmax_ray ,n_vmax_ray
-      integer  i_vmax_tab ,n_vmax_tab
-      integer  i_det33_tab ,n_det33_tab
-      integer  i_tc_ray  ,n_tc_ray
-      integer  i_qq_ray  ,n_qq_ray
-      integer  i_hq_ray  ,n_hq_ray
-      integer  i_gs_ray  ,n_gs_ray
-      integer  i_phase_ray,n_phase_ray
-      integer  i_vq11_ray,n_vq11_ray
-      integer  i_vq12_ray,n_vq12_ray
-      integer  i_vq22_ray,n_vq22_ray
-      integer  i_vx_ray  ,n_vx_ray
-      integer  i_vy_ray  ,n_vy_ray
-      integer  i_vz_ray  ,n_vz_ray
-      integer  i_ir_tube ,n_ir_tube
-      integer  i_it_tube ,n_it_tube
-      integer  i_is_tube ,n_is_tube
-      integer  n_che_index
-      integer  i_ia_rays,  n_ia_rays
-      integer  i_it_flag,n_it_flag
-      integer  i_ir_flag,n_ir_flag
-      integer  i_ir_pointer, n_ir_pointer
-      integer  i_it_pointer, n_it_pointer
-      integer  i_points,     n_points
-      integer  i_norm_x, n_norm_x
-      integer  i_norm_y, n_norm_y
-      integer  i_norm_z, n_norm_z
-      integer  i_work    ,n_work
-      integer  i_work_i  ,i_work_n
-
-      integer  i,j,k
-
-      integer  num_add, inter_type
-      real     maxangle
-
-      integer  i_call
-      data     i_call/0/
-      i_call = i_call + 1
-
-      m_xyz_tab = 0
-
-c  compute the ray time step length
-      call util_min_max(v_min,v_max,nx_vel*ny_vel*nz_vel,vel)
-
-      mt_micro = t_scale
-      mt_ray   = int((t1_ray-t0_ray)/dt_ray) + 1
-c inter_type indicates interpolation type used in ktime_3d_receiver_4
-c       1--most energetic    2--first arrival
-c       3--shortest raypath  4--smallest maximum velocity
-c       5--longest time      6--longest raypath
-
-      maxangle = maxangle * asin(1.) / 90.
-      maxangle = cos(maxangle)
-
-      if (mt_ray .gt. 1e6)stop
-
-      m_tube = m_ray*2   ! maximum number of ray tubes
-
-c  compute the number of samples in the travel time table
-      m_xyz_tab = iz_tab(ix_tab(ny_tab)+nx_tab(ny_tab))
-     1 + nz_tab(ix_tab(ny_tab)+nx_tab(ny_tab))
-
-c  allocate work space
-      n_a_tab    = m_xyz_tab   !
-      n_b_tab    = m_xyz_tab 
-      n_e2z_tab  = m_xyz_tab 
-      n_x_ray    = m_ray  * 2  ! ray x location
-      n_y_ray    = m_ray  * 2  ! ray x location
-      n_z_ray    = m_ray  * 2  ! ray x location
-      n_px_ray   = m_ray  * 2  ! ray x ray parameter
-      n_py_ray   = m_ray  * 2  ! ray y ray parameter
-      n_pz_ray   = m_ray  * 2  ! ray z ray parameter
-      n_tx_ray   = m_ray  * 2  ! ray propogation direction
-      n_ty_ray   = m_ray  * 2  ! ray propogation direction
-      n_tz_ray   = m_ray  * 2  ! ray propogation direction
-      n_e1x_ray  = m_ray  * 2  ! ray center basis
-      n_e1y_ray  = m_ray  * 2  ! ray center basis
-      n_e1z_ray  = m_ray  * 2  ! ray center basis
-      n_e2x_ray  = m_ray  * 2  ! ray center basis
-      n_e2y_ray  = m_ray  * 2  ! ray center basis
-      n_e2z_ray  = m_ray  * 2  ! ray center basis
-      n_vx_ray   = m_ray  * 2  ! dv / dx
-      n_vy_ray   = m_ray  * 2  ! dv / dy
-      n_vz_ray   = m_ray  * 2  ! dv / dz
-      n_tc_ray   = m_ray  * 2  ! dynamic system
-      n_qq_ray   = m_ray  * 8  ! dynamic system
-      n_hq_ray   = m_ray  * 8  ! dynamic system
-      n_gs_ray   = m_ray  * 2  ! geometrical spreading
-      n_phase_ray= m_ray  * 2  ! phase along rays
-      n_vq11_ray = m_ray  * 2  ! d2v / dq2
-      n_vq12_ray = m_ray  * 2  ! d2v / dq2
-      n_vq22_ray = m_ray  * 2  ! d2v / dq2
-      n_v_ray    = m_ray  * 2  ! ray velocity(x,y,z)
-      n_v_ray_tmp= m_ray       ! ray velocity(x,y,z)
-      n_vmax_ray = m_ray       ! maximum velocity along the rays
-      n_vmax_tab = m_xyz_tab   ! maximum velocity
-      n_det33_tab = m_xyz_tab   ! det33
-      n_s_ray    = m_ray  * 2  ! ray path length
-      n_s_tab    = m_xyz_tab   ! ray path length
-      n_a_ray    = m_ray       ! ray angle a
-      n_b_ray    = m_ray       ! ray angle b
-      n_ir_tube  = m_tube * 3  ! ray tube pointers
-      n_it_tube  = m_tube * 3  ! ray tube pointers
-      n_is_tube  = m_tube * 3  ! ray tube pointers
-      n_che_index= m_tube * 2  ! add tube flag
-      n_it_flag  = m_tube      ! tube boundary flag
-      n_ir_flag   = m_ray      ! live ray flag
-      n_ir_pointer= m_ray      ! pointer to the alive rays
-      n_it_pointer= m_tube     ! pointer to the alive tubes
-      n_points = m_xyz_tab    !
-      n_ia_rays = m_ray * 3   ! add rays index
-      n_norm_x = m_tube *2
-      n_norm_y = m_tube * 2
-      n_norm_z = m_tube * 2
-
-      call util_wors(i_work_i,i_work_n,m_work)
-      call util_work(i_work_i,i_work_n,i_a_tab ,n_a_tab )         
-      call util_work(i_work_i,i_work_n,i_b_tab ,n_b_tab )         
-      call util_work(i_work_i,i_work_n,i_e2z_tab,n_e2z_tab )         
-      call util_work(i_work_i,i_work_n,i_x_ray   ,n_x_ray   )
-      call util_work(i_work_i,i_work_n,i_y_ray   ,n_y_ray   )
-      call util_work(i_work_i,i_work_n,i_z_ray   ,n_z_ray   )
-      call util_work(i_work_i,i_work_n,i_px_ray  ,n_px_ray  )
-      call util_work(i_work_i,i_work_n,i_py_ray  ,n_py_ray  )
-      call util_work(i_work_i,i_work_n,i_pz_ray  ,n_pz_ray  )
-      call util_work(i_work_i,i_work_n,i_tx_ray  ,n_tx_ray  )
-      call util_work(i_work_i,i_work_n,i_ty_ray  ,n_ty_ray  )
-      call util_work(i_work_i,i_work_n,i_tz_ray  ,n_tz_ray  )
-      call util_work(i_work_i,i_work_n,i_e1x_ray  ,n_e1x_ray  )
-      call util_work(i_work_i,i_work_n,i_e1y_ray  ,n_e1y_ray  )
-      call util_work(i_work_i,i_work_n,i_e1z_ray  ,n_e1z_ray  )
-      call util_work(i_work_i,i_work_n,i_e2x_ray  ,n_e2x_ray  )
-      call util_work(i_work_i,i_work_n,i_e2y_ray  ,n_e2y_ray  )
-      call util_work(i_work_i,i_work_n,i_e2z_ray  ,n_e2z_ray  )
-      call util_work(i_work_i,i_work_n,i_a_ray   ,n_a_ray   )
-      call util_work(i_work_i,i_work_n,i_b_ray   ,n_b_ray   )
-      call util_work(i_work_i,i_work_n,i_s_ray   ,n_s_ray   )
-      call util_work(i_work_i,i_work_n,i_s_tab   ,n_s_tab   )
-      call util_work(i_work_i,i_work_n,i_v_ray   ,n_v_ray   )
-      call util_work(i_work_i,i_work_n,i_v_ray_tmp,n_v_ray_tmp)
-      call util_work(i_work_i,i_work_n,i_vmax_ray,n_vmax_ray)
-      call util_work(i_work_i,i_work_n,i_vmax_tab,n_vmax_tab)
-      call util_work(i_work_i,i_work_n,i_det33_tab,n_det33_tab)
-      call util_work(i_work_i,i_work_n,i_vx_ray  ,n_vx_ray  )
-      call util_work(i_work_i,i_work_n,i_vy_ray  ,n_vy_ray  )
-      call util_work(i_work_i,i_work_n,i_vz_ray  ,n_vz_ray  )
-      call util_work(i_work_i,i_work_n,i_tc_ray  ,n_tc_ray  )
-      call util_work(i_work_i,i_work_n,i_qq_ray  ,n_qq_ray  )
-      call util_work(i_work_i,i_work_n,i_hq_ray  ,n_hq_ray  )
-      call util_work(i_work_i,i_work_n,i_gs_ray  ,n_gs_ray  )
-      call util_work(i_work_i,i_work_n,i_phase_ray,n_phase_ray  )
-      call util_work(i_work_i,i_work_n,i_vq11_ray,n_vq11_ray)
-      call util_work(i_work_i,i_work_n,i_vq12_ray,n_vq12_ray)
-      call util_work(i_work_i,i_work_n,i_vq22_ray,n_vq22_ray)
-      call util_work(i_work_i,i_work_n,i_ir_tube ,n_ir_tube )
-      call util_work(i_work_i,i_work_n,i_it_tube ,n_it_tube )
-      call util_work(i_work_i,i_work_n,i_is_tube ,n_is_tube )
-      call util_work(i_work_i,i_work_n,i_ia_rays,n_ia_rays)
-      call util_work(i_work_i,i_work_n,i_it_flag ,n_it_flag )
-      call util_work(i_work_i,i_work_n,i_ir_flag ,n_ir_flag )
-      call util_work(i_work_i,i_work_n,i_it_pointer ,n_it_pointer )
-      call util_work(i_work_i,i_work_n,i_ir_pointer ,n_ir_pointer )
-      call util_work(i_work_i,i_work_n,i_points ,n_points )
-      call util_work(i_work_i,i_work_n,i_norm_x ,n_norm_x )
-      call util_work(i_work_i,i_work_n,i_norm_y ,n_norm_y )
-      call util_work(i_work_i,i_work_n,i_norm_z ,n_norm_z )
-
-      call util_worc(i_work_i,i_work_n,i_err)
-      if (i_err .ne. 0) goto 999
-      call util_worl(i_work_i,i_work_n,n_work)
-      call util_work(i_work_i,i_work_n,i_work,n_work)
-
-c       print'(/,'' memory='',i10,'' max memory='',i10)'
-c    1,n_work,m_work
-
-c  compute travel time table
-c 3d has velocity in vel(1,1,1,1)  
-c        velocity derivatives in  vel(1,1,1,2~10)  
-c 1=velocity, 2=dv/dx, 3=dv/dy, 4=dv/dz,
-c 5=ddv2/dxdy, 6=ddv2/dxdz, 7=ddv2/dydz,
-c 8=ddv2/dxdx, 9=ddv2/dydy, 10=ddv2/dzdz
-
-        print'('' inter_type='',i2)'
-     1,inter_type
-        print*,'1---most energetic'
-        print*,'2---first arrival'
-        print*,'3---shortest raypath'
-        print*,'4---smallest maximum velocity'
-        print*,'5---longest time'
-        print*,'6---longest raypath'
-
-      call ktime_3d_raytrace_0(xs,ys,zs
-     1,ix_tab,nx_tab,x0_tab,dx_tab
-     1       ,ny_tab,y0_tab,dy_tab
-     1,iz_tab,nz_tab,z0_tab,dz_tab
-     1,t_tab
-     1,nx_vel,x0_vel,dx_vel
-     1,ny_vel,y0_vel,dy_vel
-     1,nz_vel,z0_vel,dz_vel
-     1,vel
-     1,m_xyz_tab,m_ray,m_tube
-     1,mt_micro,mt_ray,t0_ray,dt_ray,ds_ray
-     1,dr_ray
-     1,na_ray,a0_ray,da_ray,a1_ray
-     1,nb_ray,b0_ray,db_ray,b1_ray
-     1,v0,vx,vy,vz
-     1,amp_tab,phase_tab
-     1,q11_tab,q12_tab,q21_tab,q22_tab,p3_tab
-     1,work(i_s_tab),work(i_a_tab),work(i_b_tab),work(i_e2z_tab)
-     1,work(i_a_ray ),work(i_b_ray ),work(i_s_ray)
-     1,work(i_x_ray ),work(i_y_ray ),work(i_z_ray )
-     1,work(i_px_ray),work(i_py_ray),work(i_pz_ray)
-     1,work(i_tx_ray),work(i_ty_ray),work(i_tz_ray)
-     1,work(i_e1x_ray),work(i_e1y_ray),work(i_e1z_ray)
-     1,work(i_e2x_ray),work(i_e2y_ray),work(i_e2z_ray)
-     1,work(i_tc_ray)
-     1,work(i_qq_ray),work(i_hq_ray),work(i_gs_ray)
-     1,work(i_phase_ray)
-     1,work(i_v_ray ),work(i_v_ray_tmp),work(i_vq11_ray)
-     1,work(i_vq12_ray),work(i_vq22_ray)
-     1,work(i_vx_ray),work(i_vy_ray),work(i_vz_ray)
-     1,work(i_vmax_ray),work(i_vmax_tab),work(i_det33_tab)
-     1,work(i_ir_tube),work(i_is_tube),work(i_it_tube)
-     1,work(i_points)
-     1,work(i_ia_rays)
-     1,work(i_it_flag),work(i_ir_flag)
-     1,work(i_ir_pointer),work(i_it_pointer)
-     1,work(i_norm_x),work(i_norm_y),work(i_norm_z)
-     1,num_add,inter_type,maxangle
-     1,n_work,work(i_work)
-     1,outt_file,outamp_file
-     1,outpha_file,outq11_file,outq12_file
-     1,outq21_file,outq22_file
-     1,outa0_file,outb0_file,outa1_file,outb1_file
-     1,oute1x_file,oute1y_file,oute1z_file
-     1,oute2x_file,oute2y_file,oute2z_file
-     1,i_err)
-
-      return 
-
-  999 continue
-      print'('' error in ktime_3d_raytrace'')'
-      i_err = -1
-      return
-
-      end
-
-c23456789012345678901234567890123456789012345678901234567890123456789012
+      contains
+      
       subroutine ktime_3d_raytrace_0(xs,ys,zs
      1,ix_tab,nx_tab,x0_tab,dx_tab
      1       ,ny_tab,y0_tab,dy_tab
@@ -705,7 +65,9 @@ c  tube side i_side of tube i_tube connects to
 c  tube side is_tube(i_side,i_tube) of tube it_tube(i_side,i_tube)
 c
       implicit none
-
+!DEC$ ATTRIBUTES NO_ARG_CHECK :: phase_ray, ir_tube, is_tube,it_tube
+!DEC$ ATTRIBUTES NO_ARG_CHECK :: points,ia_rays,it_flag, ir_flag
+!DEC$ ATTRIBUTES NO_ARG_CHECK :: ir_pointer, it_pointer
       character outt_file*(*)
       character outamp_file*(*)
       character outpha_file*(*)
@@ -824,6 +186,7 @@ c  2d has bicubic spline coefficients in vcof 3d has velocity and derivatives
 
       integer  m_work
       real     work(m_work)
+      
 
       integer  i_err
 
@@ -1314,7 +677,1097 @@ c    1,m_xyz_tab,n_fill,i0,i1,i2,i3,i4,i5,i6,i7
 
       return
 
-      end
+      end subroutine 
+      
+      subroutine ktime_3d_check_boundary_4(it_ray,xs,ys,zs
+     1,x_min,x_max,y_min,y_max,z_min,z_max
+     1,m_ray,m_tube,n_ray,n_tube
+     1, a_ray, b_ray
+     1, x_ray, y_ray, z_ray, s_ray
+     1,px_ray,py_ray,pz_ray
+     1,tx_ray,ty_ray,tz_ray
+     1,e1x_ray,e1y_ray,e1z_ray
+     1,e2x_ray,e2y_ray,e2z_ray
+     1,tc_ray,qq_ray,hq_ray
+     1,gs_ray,phase_ray
+     1,v_ray,vq11_ray,vq12_ray,vq22_ray
+     1,vx_ray,vy_ray,vz_ray,vmax_ray
+     1,n_inray,n_outray,ir_flag,ir_pointer
+     1,ir_tube,it_tube,is_tube,n_intube,n_outtube
+     1,it_flag,it_pointer
+     1,maxangle
+     1,i_err)
+c  check if rays have left the travel time table area
+c  update index of tubes and rays that are inside the target region
+      implicit none
+      integer  m_ray,m_tube
+      !DEC$ ATTRIBUTES NO_ARG_CHECK :: phase_ray
+      integer   it_ray
+      real      xs,ys,zs
+      real      a_ray(m_ray), b_ray(m_ray), s_ray(m_ray)
+      real      x_ray(m_ray), y_ray(m_ray), z_ray(m_ray)
+      real     px_ray(m_ray),py_ray(m_ray),pz_ray(m_ray)
+      real     tx_ray(m_ray),ty_ray(m_ray),tz_ray(m_ray)
+      real     e1x_ray(m_ray),e1y_ray(m_ray),e1z_ray(m_ray)
+      real     e2x_ray(m_ray),e2y_ray(m_ray),e2z_ray(m_ray)
+      real     tc_ray(m_ray), qq_ray(4,m_ray), hq_ray(4,m_ray)
+      real     gs_ray(m_ray), phase_ray(m_ray)
+      real      v_ray(m_ray), vq11_ray(m_ray), vq12_ray(m_ray)
+      real     vq22_ray(m_ray), vmax_ray(m_ray)
+      real     vx_ray(m_ray), vy_ray(m_ray), vz_ray(m_ray)
+      integer  ir_flag(m_ray)
+      integer  ir_pointer(m_ray)
+      integer  ir_tube(3,m_tube)
+      integer  it_tube(3,m_tube)
+      integer  is_tube(3,m_tube)
+      integer  it_flag(m_tube)
+      integer  it_pointer(m_tube)
+      integer  n_ray,n_tube
+ 
+      integer  i,n_inray,n_inray_2,n_outray,i_inray
+      integer  i_intube,n_intube,n_intube_2
+      integer  n_outtube
+      real     x_min,x_max,y_min,y_max,z_min,z_max
+      integer  i1,i2,i3,j_bound,i_tube
+      real     u(3,3)
+
+      real     maxangle, maxang_tmp
+ 
+      integer  i_err
+      call util_seti(n_inray,ir_flag,-1)
+      call util_seti(n_intube,it_flag,-1)
+
+      maxang_tmp=cos(3.1416/2.0)
+
+      n_intube_2 = n_intube
+      n_intube= 0
+      do i_tube =1, n_intube_2
+
+         i1 = ir_tube(1,i_tube)
+         i2 = ir_tube(2,i_tube)
+         i3 = ir_tube(3,i_tube)
+
+         u(1,1) = x_ray(i1)
+         u(2,1) = y_ray(i1)
+         u(3,1) = z_ray(i1)
+         u(1,2) = x_ray(i2)
+         u(2,2) = y_ray(i2)
+         u(3,2) = z_ray(i2)
+         u(1,3) = x_ray(i3)
+         u(2,3) = y_ray(i3)
+         u(3,3) = z_ray(i3)
+
+         j_bound = 0
+         do i = 1,3
+
+            if (u(1,i) .ge. x_min .and. u(1,i) .le. x_max
+     1   .and.  u(2,i) .ge. y_min .and. u(2,i) .le. y_max
+     1   .and.  u(3,i) .ge. z_min .and. u(3,i) .le. z_max)
+     1      then
+            j_bound = j_bound + 1
+            endif !  if (u(1,i) .lt.
+
+         enddo ! do i = 1,3
+
+         if (j_bound .eq. 0) then
+
+            n_outtube = n_outtube +1
+
+         elseif (pz_ray(i1)*v_ray(i1) .lt.  maxangle
+     1  .and. pz_ray(i2)*v_ray(i2) .lt. maxangle 
+     1  .and. pz_ray(i3)*v_ray(i3) .lt. maxangle ) then
+
+            n_outtube = n_outtube +1
+
+         elseif ( u(3,1) .gt. 1800 .and. u(3,2) .gt. 1800.0
+     1  .and. u(3,3) .gt. 1800 .and.
+     1     pz_ray(i1)*v_ray(i1) .lt.  maxang_tmp
+     1  .and. pz_ray(i2)*v_ray(i2) .lt. maxang_tmp 
+     1  .and. pz_ray(i3)*v_ray(i3) .lt. maxang_tmp ) then
+
+            n_outtube = n_outtube +1
+
+          else
+
+            ir_flag(i1) = 1
+            ir_flag(i2) = 1
+            ir_flag(i3) = 1
+
+            n_intube = n_intube +1
+            it_flag(i_tube) = i_tube - n_intube
+
+         endif ! if (j_bound .ge. 0) then
+
+
+      enddo ! do i_tube =1, n_intube
+
+      n_inray_2 = n_inray
+      n_inray = 0
+      do i =1, n_inray_2
+ 
+         if (ir_flag(i) .ne. -1) then
+           n_inray = n_inray +1 
+           ir_pointer(n_inray) = i
+           ir_flag(i) = i - n_inray
+          
+         endif !if (ir_flag(i) .eq. 1) then
+ 
+      enddo ! do i =1, n_ray
+      n_outray = n_inray_2 - n_inray
+ 
+      do i_tube =1, n_intube_2
+
+         if (it_flag(i_tube) .ge. 0) then
+
+            i_intube = i_tube-it_flag(i_tube)
+
+            i1 = it_tube(1,i_tube)
+            i2 = it_tube(2,i_tube)
+            i3 = it_tube(3,i_tube)
+
+            if (it_flag(i1) .ge. 0 ) then 
+	       it_tube(1,i_intube) = i1 - it_flag(i1)
+               is_tube(1,i_intube) = is_tube(1,i_tube) 
+            else
+               it_tube(1,i_intube) = -1
+               is_tube(1,i_intube) = -1
+            endif !if (it_flag(i1) .ne. -1) then
+
+            if (it_flag(i2) .ge. 0) then 
+               it_tube(2,i_intube) = i2 - it_flag(i2)
+               is_tube(2,i_intube) = is_tube(2,i_tube) 
+            else
+               it_tube(2,i_intube) = -1
+               is_tube(2,i_intube) = -1
+            endif !if (it_flag(i2) .ne. -1) then
+
+            if (it_flag(i3) .ge. 0) then 
+               it_tube(3,i_intube) = i3 - it_flag(i3)
+               is_tube(3,i_intube) = is_tube(3,i_tube) 
+            else
+               it_tube(3,i_intube) = -1
+               is_tube(3,i_intube) = -1
+            endif !if (it_flag(i3) .ne. -1) then
+
+            i1 = ir_tube(1,i_tube)
+            i2 = ir_tube(2,i_tube)
+            i3 = ir_tube(3,i_tube)
+            
+	    if (ir_flag(i1) .ne. -1) then 
+              ir_tube(1,i_intube) = i1 - ir_flag(i1)
+            else
+              ir_tube(1,i_intube) = -1
+              print*,'ir_tube error at ',i_tube, i1
+            endif !if (ir_flag(ir_tube(1,i_tube)) .ne. -1) then
+
+            if (ir_flag(i2) .ne. -1) then 
+              ir_tube(2,i_intube) = i2 - ir_flag(i2)
+            else
+              ir_tube(2,i_intube) = -1
+              print*,'ir_tube error at ',i_tube, i2
+            endif !if (ir_flag(ir_tube(2,i_tube)) .ne. -1) then
+
+            if (ir_flag(i3) .ne. -1) then 
+              ir_tube(3,i_intube) = i3 - ir_flag(i3)
+            else
+              ir_tube(3,i_intube) = -1
+              print*,'ir_tube error at ',i_tube, i3
+            endif !if (ir_flag(ir_tube(3,i_tube)) .ne. -1) then
+
+         endif !if (it_flag(i_tube) .gt. 0) then
+
+      enddo !do i_tube =1, n_intube_2
+
+      do i =1, n_inray_2
+ 
+         if (ir_flag(i) .gt. 0) then
+
+           i_inray = i - ir_flag(i)
+
+	   a_ray(i_inray) = a_ray(i)
+	   b_ray(i_inray) = b_ray(i)
+	   x_ray(i_inray) = x_ray(i)
+	   y_ray(i_inray) = y_ray(i)
+	   z_ray(i_inray) = z_ray(i)
+	   s_ray(i_inray) = s_ray(i)
+	   px_ray(i_inray) = px_ray(i)
+	   py_ray(i_inray) = py_ray(i)
+	   pz_ray(i_inray) = pz_ray(i)
+	   tx_ray(i_inray) = tx_ray(i)
+	   ty_ray(i_inray) = ty_ray(i)
+	   tz_ray(i_inray) = tz_ray(i)
+	   e1x_ray(i_inray) = e1x_ray(i)
+	   e1y_ray(i_inray) = e1y_ray(i)
+	   e1z_ray(i_inray) = e1z_ray(i)
+	   e2x_ray(i_inray) = e2x_ray(i)
+	   e2y_ray(i_inray) = e2y_ray(i)
+	   e2z_ray(i_inray) = e2z_ray(i)
+	   tc_ray(i_inray) = tc_ray(i)
+	   qq_ray(1,i_inray) = qq_ray(1,i)
+	   qq_ray(2,i_inray) = qq_ray(2,i)
+	   qq_ray(3,i_inray) = qq_ray(3,i)
+	   qq_ray(4,i_inray) = qq_ray(4,i)
+	   hq_ray(1,i_inray) = hq_ray(1,i)
+	   hq_ray(2,i_inray) = hq_ray(2,i)
+	   hq_ray(3,i_inray) = hq_ray(3,i)
+	   hq_ray(4,i_inray) = hq_ray(4,i)
+	   gs_ray(i_inray) = gs_ray(i)
+	   phase_ray(i_inray) = phase_ray(i)
+	   v_ray(i_inray) = v_ray(i)
+	   vq11_ray(i_inray) = vq11_ray(i)
+	   vq12_ray(i_inray) = vq12_ray(i)
+	   vq22_ray(i_inray) = vq22_ray(i)
+	   vx_ray(i_inray) = vx_ray(i)
+	   vy_ray(i_inray) = vy_ray(i)
+	   vz_ray(i_inray) = vz_ray(i)
+	   vmax_ray(i_inray) = vmax_ray(i)
+	   
+         endif !if (ir_flag(i) .eq. 1) then
+ 
+      enddo ! do i =1, n_ray
+
+      call ktime_3d_raytrace_check_tcon_2(
+     1 it_ray,n_intube_2,n_intube,ir_tube,is_tube,it_tube,it_flag
+     1,i_err)
+      return
+ 
+      end subroutine 
+      subroutine ktime_3d_compute_v_grad_1(
+     1 xs,ys,zs
+     1,n_xyz
+     1,z0,x0,y0
+     1,pz,px,py
+     1,nz_vel,z0_vel,dz_vel
+     1,nx_vel,x0_vel,dx_vel
+     1,ny_vel,y0_vel,dy_vel
+     1,vcof
+     1,vfun,dvdz,dvdx,dvdy,dvdq11,dvdq12,dvdq22
+     1,m_work,work
+     1,i_err
+     1)
+c--------------------------------------------------------------
+c     Purpose:
+c              Special constant velocity gradient version
+c              Find velocity and some of the derivatives from the
+c              model.
+c--------------------------------------------------------------
+c     Input :
+c             z0 - z location
+c             x0 - x location
+c             y0 - y location
+c             pz - z ray parameter
+c             px - x ray parameter
+c             py - y ray parameter
+c--------------------------------------------------------------
+c     Output :
+c             vfun - velocity function
+c             dvdz - 1st derivative with respect to global z.
+c             dvdx - 1st derivative with respect to global x
+c             dvdy - 1st derivative with respect to global y
+c             dvdq - 2nd derivative with respect to ray centred
+c                      coordinate.
+c  right now set v0,xc,yc,zc,vx,vy,vz using the first nodes of vcof
+c  v(x,y,z) = v0 + vx*(x-xc) + vy*(y-yc) + vz*(z-zc)
+c  dvdx = vx
+c  dvdy = vy
+c  dvdz = vz
+c  dvdq = 0.
+c--------------------------------------------------------------
+ 
+      implicit none
+!DEC$ ATTRIBUTES NO_ARG_CHECK :: px,py,pz
+      real     xs,ys,zs
+ 
+      integer  n_xyz
+      real     x0(n_xyz),y0(n_xyz),z0(n_xyz)
+      real     px(n_xyz),py(n_xyz),pz(n_xyz)
+ 
+      integer  nx_vel
+      real     x0_vel,dx_vel
+ 
+      integer  ny_vel
+      real     y0_vel,dy_vel
+ 
+      integer  nz_vel
+      real     z0_vel,dz_vel
+ 
+      real     vcof(nz_vel,nx_vel,ny_vel,10)
+
+      real     vfun(n_xyz)
+      real     dvdx(n_xyz)
+      real     dvdy(n_xyz)
+      real     dvdz(n_xyz)
+      real     dvdq11(n_xyz)
+      real     dvdq12(n_xyz)
+      real     dvdq22(n_xyz)
+!DEC$ ATTRIBUTES NO_ARG_CHECK :: dvdx,dvdy,dvdz,dvdq11,dvdq12,dvdq22
+
+      integer  m_work
+      real     work(m_work)
+ 
+      integer  i_err
+ 
+      integer  i_xyz
+
+      integer  ix,iy,iz
+      real     xf,yf,zf
+      real     cq(3,3)   !   dx_i/dq_j
+ 
+      real     v_xy,v_xy_eps
+
+      integer  i_call
+      data     i_call/0/
+      data     v_xy_eps/1.e-6/
+      i_call = i_call + 1
+ 
+c  compute v0, dvdx, dvdy, dvdz from velocity
+
+      i_err = 0
+
+      do i_xyz = 1 , n_xyz
+
+        ix = max(1,min(nx_vel-1,int((x0(i_xyz)-x0_vel)/dx_vel)+2))
+
+        iy = max(1,min(ny_vel-1,int((y0(i_xyz)-y0_vel)/dy_vel)+2))
+ 
+        iz = max(1,min(nz_vel-1,int((z0(i_xyz)-z0_vel)/dz_vel)+2))
+ 
+        xf = max(0.,min(1.
+     1,(x0(i_xyz)-(ix-2)*dx_vel-x0_vel)/dx_vel))
+
+        yf = max(0.,min(1.
+     1,(y0(i_xyz)-(iy-2)*dy_vel-y0_vel)/dy_vel))
+ 
+        zf = max(0.,min(1.
+     1,(z0(i_xyz)-(iz-2)*dz_vel-z0_vel)/dz_vel))
+
+        vfun(i_xyz) =   yf * (xf * ( zf * vcof(iz,ix,iy,1)
+     1+                   (1-zf)*vcof(max(1,iz-1),ix,iy,1)) 
+     1+          (1-xf) * ( zf * vcof(iz,max(1,ix-1),iy,1) 
+     1+          (1-zf)*vcof(max(1,iz-1),max(1,ix-1),iy,1)))
+     1+     (1-yf) *(xf * ( zf * vcof(iz,ix,max(1,iy-1),1) 
+     1+          (1-zf)*vcof(max(1,iz-1),ix,max(1,iy-1),1)) 
+     1+ (1-xf) * ( zf * vcof(iz,max(1,ix-1),max(1,iy-1),1) 
+     1+ (1-zf)*vcof(max(1,iz-1),max(1,ix-1),max(1,iy-1),1)))
+
+        dvdx(i_xyz) =   yf * (xf * ( zf * vcof(iz,ix,iy,2)
+     1+                   (1-zf)*vcof(max(1,iz-1),ix,iy,2))
+     1+          (1-xf) * ( zf * vcof(iz,max(1,ix-1),iy,2)
+     1+          (1-zf)*vcof(max(1,iz-1),max(1,ix-1),iy,2)))
+     1+     (1-yf) *(xf * ( zf * vcof(iz,ix,max(1,iy-1),2)
+     1+          (1-zf)*vcof(max(1,iz-1),ix,max(1,iy-1),2))
+     1+ (1-xf) * ( zf * vcof(iz,max(1,ix-1),max(1,iy-1),2)
+     1+ (1-zf)*vcof(max(1,iz-1),max(1,ix-1),max(1,iy-1),2)))
+
+
+        dvdy(i_xyz) =   yf * (xf * ( zf * vcof(iz,ix,iy,3)
+     1+                   (1-zf)*vcof(max(1,iz-1),ix,iy,3))
+     1+          (1-xf) * ( zf * vcof(iz,max(1,ix-1),iy,3)
+     1+          (1-zf)*vcof(max(1,iz-1),max(1,ix-1),iy,3)))
+     1+     (1-yf) *(xf * ( zf * vcof(iz,ix,max(1,iy-1),3)
+     1+          (1-zf)*vcof(max(1,iz-1),ix,max(1,iy-1),3))
+     1+ (1-xf) * ( zf * vcof(iz,max(1,ix-1),max(1,iy-1),3)
+     1+ (1-zf)*vcof(max(1,iz-1),max(1,ix-1),max(1,iy-1),3)))
+
+
+        dvdz(i_xyz) =   yf * (xf * ( zf * vcof(iz,ix,iy,4)
+     1+                   (1-zf)*vcof(max(1,iz-1),ix,iy,4))
+     1+          (1-xf) * ( zf * vcof(iz,max(1,ix-1),iy,4)
+     1+          (1-zf)*vcof(max(1,iz-1),max(1,ix-1),iy,4)))
+     1+     (1-yf) *(xf * ( zf * vcof(iz,ix,max(1,iy-1),4)
+     1+          (1-zf)*vcof(max(1,iz-1),ix,max(1,iy-1),4))
+     1+ (1-xf) * ( zf * vcof(iz,max(1,ix-1),max(1,iy-1),4)
+     1+ (1-zf)*vcof(max(1,iz-1),max(1,ix-1),max(1,iy-1),4)))
+
+        v_xy = 1. / max(v_xy_eps,
+     1sqrt(px(i_xyz)*px(i_xyz)+py(i_xyz)*py(i_xyz))) ! alpha cann't be 0 or pi 
+        
+        cq(1,1) = v_xy * py(i_xyz)
+        cq(2,1) = -v_xy * px(i_xyz)
+        cq(3,1) = 0
+        cq(1,2) = vcof(iz,ix,iy,1) *pz(i_xyz) *v_xy *px(i_xyz)
+        cq(2,2) = vcof(iz,ix,iy,1) *pz(i_xyz) *v_xy *py(i_xyz)
+        cq(3,2) = -vcof(iz,ix,iy,1) / v_xy
+
+        dvdq11(i_xyz) = vcof(iz,ix,iy,8)*cq(1,1)*cq(1,1)
+     1+vcof(iz,ix,iy,9)*cq(2,1)*cq(2,1) 
+     1+vcof(iz,ix,iy,10)*cq(3,1)*cq(3,1)
+     1+ 2 * ( vcof(iz,ix,iy,5)*cq(1,1)*cq(2,1) 
+     1+vcof(iz,ix,iy,6)*cq(1,1)*cq(3,1)
+     1+vcof(iz,ix,iy,7)*cq(2,1)*cq(3,1)) 
+
+        dvdq12(i_xyz) = vcof(iz,ix,iy,8)*cq(1,1)*cq(1,2)
+     1+vcof(iz,ix,iy,9)*cq(2,1)*cq(2,2) 
+     1+vcof(iz,ix,iy,10)*cq(3,1)*cq(3,2)     
+     1+vcof(iz,ix,iy,5)* (cq(1,2)*cq(2,1) + cq(1,1)*cq(2,2))
+     1+vcof(iz,ix,iy,6)* (cq(1,3)*cq(3,2) + cq(1,2)*cq(3,1))
+     1+vcof(iz,ix,iy,7)* (cq(2,1)*cq(3,2) + cq(2,2)*cq(3,1))
+
+        dvdq22(i_xyz) = vcof(iz,ix,iy,8)*cq(1,2)*cq(1,2)
+     1+vcof(iz,ix,iy,9)*cq(2,2)*cq(2,2) 
+     1+vcof(iz,ix,iy,10)*cq(3,2)*cq(3,2)     
+     1+ 2 * ( vcof(iz,ix,iy,5)*cq(1,2)*cq(2,2) 
+     1+vcof(iz,ix,iy,6)*cq(1,2)*cq(3,2)
+     1+vcof(iz,ix,iy,7)*cq(2,2)*cq(3,2)) 
+   
+ 
+      enddo    ! do i_xyz = 1 , n_xyz
+
+      return
+ 
+  999 continue
+      print'(/,'' error in ktime_3d_compute_v_grad'')'
+      i_err = -1
+      return
+      end subroutine 
+      
+c23456789012345678901234567890123456789012345678901234567890123456789012
+      subroutine ktime_3d_raytrace_2(xs,ys,zs
+     1,dr_tab
+     1,ix_tab,nx_tab,x0_tab,dx_tab
+     1       ,ny_tab,y0_tab,dy_tab
+     1,iz_tab,nz_tab,z0_tab,dz_tab
+     1,t_tab,amp_tab,phase_tab
+     1,q11_tab,q12_tab,q21_tab,q22_tab,p3_tab
+     1,nx_vel,x0_vel,dx_vel
+     1,ny_vel,y0_vel,dy_vel
+     1,nz_vel,z0_vel,dz_vel
+     1,vel
+     1,na_ray,a0,a1
+     1,nb_ray,b0,b1
+     1,t_scale,dt_ray
+     1,t0_ray,t1_ray
+     1,dr_ray,inter_type,num_add
+     1,maxangle,m_ray
+     1,m_work,work
+     1,outt_file,outamp_file
+     1,outpha_file,outq11_file,outq12_file
+     1,outq21_file,outq22_file
+     1,outa0_file,outb0_file,outa1_file,outb1_file
+     1,oute1x_file,oute1y_file,oute1z_file
+     1,oute2x_file,oute2y_file,oute2z_file
+     1,i_err)
+c  compute a signle travel time/amplitude table
+c  compute velocity derivatives
+
+      implicit  none
+ 
+      character outt_file*(*)
+      character outamp_file*(*)
+      character outpha_file*(*)
+      character outq11_file*(*)
+      character outq12_file*(*)
+      character outq21_file*(*)
+      character outq22_file*(*)
+      character outa0_file*(*)
+      character outb0_file*(*)
+      character outa1_file*(*)
+      character outb1_file*(*)
+      character oute1x_file*(*)
+      character oute1y_file*(*)
+      character oute1z_file*(*)
+      character oute2x_file*(*)
+      character oute2y_file*(*)
+      character oute2z_file*(*)
+
+      real     xs,ys,zs
+ 
+      integer  ix_tab(1),nx_tab(1)
+      real     x0_tab(1),dx_tab
+ 
+      integer  ny_tab
+      real     y0_tab,dy_tab
+ 
+      integer  iz_tab(1),nz_tab(1)
+      real     z0_tab(1),dz_tab
+ 
+      real     t_tab(1),amp_tab(1)
+      real  phase_tab(1)
+      real     q11_tab(1),q12_tab(1),q21_tab(1),q22_tab(1)
+      real     p3_tab(1)
+ 
+      integer  nx_vel
+      real     x0_vel,dx_vel
+ 
+      integer  ny_vel
+      real     y0_vel,dy_vel
+      integer  nz_vel
+      real     z0_vel,dz_vel
+ 
+      real     vel(nz_vel,nx_vel,ny_vel)
+
+      integer  nx_vel_rt
+      real     x0_vel_rt,dx_vel_rt,x1_vel_rt
+ 
+      integer  ny_vel_rt
+      real     y0_vel_rt,dy_vel_rt,y1_vel_rt
+ 
+      integer  nz_vel_rt
+      real     z0_vel_rt,dz_vel_rt
+ 
+      real     dr_tab
+ 
+      integer  na_ray, nb_ray
+      real     a0, a1, b0, b1
+
+      integer  t_scale,num_add,inter_type,m_ray
+      real     t0_ray,t1_ray,dt_ray,dr_ray,maxangle
+
+      integer  m_work
+      real     work(m_work)
+ 
+      real nullTTvalue
+      parameter (nullTTvalue=0.0)
+      integer  n_xyz_tab
+ 
+      integer i_work_i,i_work_n
+ 
+      integer   nx_tab_min,nx_tab_max
+      integer   nz_tab_min,nz_tab_max
+ 
+      real    x0_tab_min, x0_tab_max
+      real    z0_tab_min, z0_tab_max
+ 
+      integer i_err,i,j,k
+ 
+      real    second,t_cpu_1, t_cpu_2
+c  work space pointers
+      integer  i_work,n_work
+      integer  j_vel, n_j_vel
+ 
+      integer  ix, iy
+ 
+c     t_cpu_1 = second()
+ 
+      call util_min_max_i(nx_tab_min,nx_tab_max,ny_tab,nx_tab)
+      call util_min_max_i(nz_tab_min,nz_tab_max
+     1,ix_tab(ny_tab)+nx_tab(ny_tab),nz_tab)
+ 
+      call util_min_max(x0_tab_min,x0_tab_max,ny_tab,x0_tab)
+      call util_min_max(z0_tab_min,z0_tab_max
+     1,ix_tab(ny_tab)+nx_tab(ny_tab),z0_tab)
+ 
+c allocate extra space for the first and second derivatives of velocity field
+c all together work(j_vel) has 10 times space of the original velocity array
+c (nz_vel,nx_vel,ny_vel,10)
+c 1=velocity, 2=dv/dx, 3=dv/dy, 4=dv/dz,
+c 5=ddv2/dxdy, 6=ddv2/dxdz, 7=ddv2/dydz,
+c 8=ddv2/dxdx, 9=ddv2/dydy, 10=ddv2/dzdz
+
+      ix = (x0_tab_min +xs - x0_vel)/dx_vel
+      x0_vel_rt = x0_vel + (ix -1 ) * dx_vel
+      x0_vel_rt = max(x0_vel_rt,x0_vel)
+      ix = (x0_tab_min+dx_tab*(nx_tab_max-1) + xs - x0_vel_rt )/dx_vel
+      x1_vel_rt = x0_vel_rt + ix * dx_vel
+      x1_vel_rt = min(x1_vel_rt, x0_vel+(nx_vel-1)*dx_vel)
+      nx_vel_rt = (x1_vel_rt - x0_vel_rt)/dx_vel + 1
+      if (nx_vel_rt .le. 0 ) then
+          x0_vel_rt = x0_vel
+          nx_vel_rt = nx_vel
+      endif !if (nx_vel_rt .le. 0 ) then
+      dx_vel_rt = dx_vel
+
+      iy = (y0_tab +ys - y0_vel)/dy_vel
+      y0_vel_rt = y0_vel + (iy -1 ) * dy_vel
+      y0_vel_rt = max(y0_vel_rt,y0_vel)
+      iy = (y0_tab+dy_tab*(ny_tab-1) + ys - y0_vel_rt )/dy_vel
+      y1_vel_rt = y0_vel_rt + iy * dy_vel
+      y1_vel_rt = min(y1_vel_rt, y0_vel+(ny_vel-1)*dy_vel)
+      ny_vel_rt = (y1_vel_rt - y0_vel_rt)/dy_vel + 1
+      if (ny_vel_rt .le. 0 ) then
+          y0_vel_rt = y0_vel
+          ny_vel_rt = ny_vel
+      endif !if (nx_vel_rt .le. 0 ) then
+      dy_vel_rt = dy_vel
+ 
+      z0_vel_rt = z0_vel
+      nz_vel_rt = nz_vel
+      dz_vel_rt = dz_vel
+
+      x0_vel_rt = x0_vel
+      nx_vel_rt = nx_vel
+      dx_vel_rt = dx_vel
+      
+      y0_vel_rt = y0_vel
+      ny_vel_rt = ny_vel
+      dy_vel_rt = dy_vel
+      
+      n_j_vel = nx_vel_rt * ny_vel_rt * nz_vel_rt * 10
+      call util_wors(i_work_i,i_work_n,m_work)
+      call util_work(i_work_i,i_work_n,j_vel ,n_j_vel )
+      call util_worc(i_work_i,i_work_n,i_err)
+      if (i_err .ne. 0) goto 999
+
+      call util_worl(i_work_i,i_work_n,n_work)
+      call util_work(i_work_i,i_work_n,i_work,n_work)
+
+c  compute velocity derivatives
+ 
+          call util_invert(nx_vel*ny_vel*nz_vel,vel) !convert slowness to v*
+ 
+          call ktime_3d_compute_v_grad_coef(
+     1 nz_vel,z0_vel,dz_vel
+     1,nx_vel,x0_vel,dx_vel
+     1,ny_vel,y0_vel,dy_vel
+     1,vel
+     1,nz_vel_rt,z0_vel_rt,dz_vel_rt
+     1,nx_vel_rt,x0_vel_rt,dx_vel_rt
+     1,ny_vel_rt,y0_vel_rt,dy_vel_rt
+     1,work(j_vel)
+     1)
+          call util_invert(nx_vel*ny_vel*nz_vel,vel) !convert slowness to v*
+ 
+c  initialize the travel time table array to a large number (100.)
+      n_xyz_tab = iz_tab(ix_tab(ny_tab)+nx_tab(ny_tab))
+     1          + nz_tab(ix_tab(ny_tab)+nx_tab(ny_tab))
+      call util_setr(n_xyz_tab,t_tab,0.)
+      call util_setr(n_xyz_tab,amp_tab,100.)
+      call util_setr(n_xyz_tab,phase_tab,0.0)
+      call util_setr(n_xyz_tab,q11_tab,0.)
+      call util_setr(n_xyz_tab,q12_tab,0.)
+      call util_setr(n_xyz_tab,q21_tab,0.)
+      call util_setr(n_xyz_tab,q22_tab,0.)
+      call util_setr(n_xyz_tab,p3_tab,1.)
+ 
+c compute the ray data through wavefront construction dynamic ray tracing
+
+      print*,' max memory in ktime_3d_raytrace:',m_work
+      print*,' max memory pass into the next  :',n_work
+
+         call ktime_3d_raytrace_1(xs,ys,zs
+     1,dr_tab
+     1,ix_tab,nx_tab,x0_tab,dx_tab
+     1       ,ny_tab,y0_tab,dy_tab
+     1,iz_tab,nz_tab,z0_tab,dz_tab
+     1,t_tab,amp_tab,phase_tab
+     1,q11_tab,q12_tab,q21_tab,q22_tab,p3_tab
+     1,nx_vel_rt,x0_vel_rt,dx_vel_rt
+     1,ny_vel_rt,y0_vel_rt,dy_vel_rt
+     1,nz_vel_rt,z0_vel_rt,dz_vel_rt
+     1,work(j_vel)
+     1,na_ray,nb_ray
+     1,a0,a1,b0,b1
+     1,t_scale,dt_ray
+     1,t0_ray,t1_ray
+     1,dr_ray,inter_type,num_add
+     1,maxangle,m_ray
+     1,n_work,work(i_work)
+     1,outt_file,outamp_file
+     1,outpha_file,outq11_file,outq12_file
+     1,outq21_file,outq22_file
+     1,outa0_file,outb0_file,outa1_file,outb1_file
+     1,oute1x_file,oute1y_file,oute1z_file
+     1,oute2x_file,oute2y_file,oute2z_file
+     1,i_err)
+        if (i_err .ne. 0) goto 999
+
+c     t_cpu_2 = second()
+
+c     print*,'time cost in ktime_3d_raytrace:',t_cpu_2-t_cpu_1
+c     print*,' max memory in ktime_3d_raytrace:',m_work
+c     print*,' max memory pass into the next  :',n_work
+
+      
+      return
+  999 continue
+      print'('' error in ktime_3d_raytrace'')'
+      i_err = -1
+      return
+ 
+      end subroutine 
+
+c23456789012345678901234567890123456789012345678901234567890123456789012
+      subroutine ktime_3d_raytrace_memory(n_work)
+c  initalize the number of word savaliable to n_work
+c  and the pointer to 1
+      implicit none
+      integer n_work
+
+      n_work = 8000000
+
+      print'('' in ktime_3d_raytrace_memory: n_work='',i10)',n_work 
+      return
+      end subroutine 
+c&&&
+c12345678901234567890123456789012345678901234567890123456789012345678901_
+      subroutine ktime_3d_raytrace_1(xs,ys,zs
+     1,dr_tab
+     1,ix_tab,nx_tab,x0_tab,dx_tab
+     1       ,ny_tab,y0_tab,dy_tab
+     1,iz_tab,nz_tab,z0_tab,dz_tab
+     1,t_tab,amp_tab,phase_tab
+     1,q11_tab,q12_tab,q21_tab,q22_tab,p3_tab
+     1,nx_vel,x0_vel,dx_vel
+     1,ny_vel,y0_vel,dy_vel
+     1,nz_vel,z0_vel,dz_vel
+     1,vel
+     1,na_ray,nb_ray
+     1,a0_ray,a1_ray
+     1,b0_ray,b1_ray
+     1,t_scale,dt_ray
+     1,t0_ray,t1_ray
+     1,dr_ray,inter_type,num_add
+     1,maxangle,m_ray
+     1,m_work,work
+     1,outt_file,outamp_file
+     1,outpha_file,outq11_file,outq12_file
+     1,outq21_file,outq22_file
+     1,outa0_file,outb0_file,outa1_file,outb1_file
+     1,oute1x_file,oute1y_file,oute1z_file
+     1,oute2x_file,oute2y_file,oute2z_file
+     1,i_err)
+c  compute a signle travel time/amplitude table
+c  allocate various work memory units
+
+      implicit none
+
+      character outt_file*(*)
+      character outamp_file*(*)
+      character outpha_file*(*)
+      character outq11_file*(*)
+      character outq12_file*(*)
+      character outq21_file*(*)
+      character outq22_file*(*)
+      character outa0_file*(*)
+      character outb0_file*(*)
+      character outa1_file*(*)
+      character outb1_file*(*)
+      character oute1x_file*(*)
+      character oute1y_file*(*)
+      character oute1z_file*(*)
+      character oute2x_file*(*)
+      character oute2y_file*(*)
+      character oute2z_file*(*)
+
+      real     xs,ys,zs,v0,vx,vy,vz
+
+      integer  ix_tab(1),nx_tab(1)
+      real     x0_tab(1),dx_tab
+
+      integer            ny_tab
+      real     y0_tab,dy_tab
+
+      integer  iz_tab(1),nz_tab(1)
+      real     z0_tab(1),dz_tab
+
+      real     t_tab(1), amp_tab(1)
+      real     phase_tab(1)
+      real     q11_tab(1),q12_tab(1),q21_tab(1),q22_tab(1)
+      real     p3_tab(1)
+
+      integer  nx_vel
+      real     x0_vel,dx_vel
+
+      integer  ny_vel
+      real     y0_vel,dy_vel
+
+      integer  nz_vel
+      real     z0_vel,dz_vel
+
+      real     vel(nz_vel,nx_vel,ny_vel,10)
+
+      integer  na_ray,nb_ray
+      real     dr_ray
+
+      real     dr_tab
+
+      integer  m_work
+      real     work(m_work)
+
+      integer  i_err
+
+      real     a0_ray,da_ray,a1_ray
+
+      real     b0_ray,db_ray,b1_ray
+
+      integer  mt_ray
+      real     t0_ray,dt_ray,t1_ray
+
+      real     ds_ray
+      real     v_min,v_max
+
+      integer  m_xyz_tab
+      integer  m_ray
+      integer  m_tube
+      integer  mt_micro
+
+c parameter for scaling the micro_mt
+      integer  t_scale
+
+c  work space pointers
+      integer  i_a_tab,   n_a_tab
+      integer  i_b_tab,   n_b_tab
+      integer  i_e2z_tab, n_e2z_tab
+      integer  i_a_ray   ,n_a_ray 
+      integer  i_b_ray   ,n_b_ray 
+      integer  i_x_ray   ,n_x_ray 
+      integer  i_y_ray   ,n_y_ray 
+      integer  i_z_ray   ,n_z_ray 
+      integer  i_px_ray  ,n_px_ray
+      integer  i_py_ray  ,n_py_ray
+      integer  i_pz_ray  ,n_pz_ray
+      integer  i_tx_ray  ,n_tx_ray
+      integer  i_ty_ray  ,n_ty_ray
+      integer  i_tz_ray  ,n_tz_ray
+      integer  i_e1x_ray ,n_e1x_ray
+      integer  i_e1y_ray ,n_e1y_ray
+      integer  i_e1z_ray ,n_e1z_ray
+      integer  i_e2x_ray ,n_e2x_ray
+      integer  i_e2y_ray ,n_e2y_ray
+      integer  i_e2z_ray ,n_e2z_ray
+      integer  i_s_ray   ,n_s_ray 
+      integer  i_s_tab   ,n_s_tab
+      integer  i_v_ray   ,n_v_ray
+      integer  i_v_ray_tmp,n_v_ray_tmp
+      integer  i_vmax_ray ,n_vmax_ray
+      integer  i_vmax_tab ,n_vmax_tab
+      integer  i_det33_tab ,n_det33_tab
+      integer  i_tc_ray  ,n_tc_ray
+      integer  i_qq_ray  ,n_qq_ray
+      integer  i_hq_ray  ,n_hq_ray
+      integer  i_gs_ray  ,n_gs_ray
+      integer  i_phase_ray,n_phase_ray
+      integer  i_vq11_ray,n_vq11_ray
+      integer  i_vq12_ray,n_vq12_ray
+      integer  i_vq22_ray,n_vq22_ray
+      integer  i_vx_ray  ,n_vx_ray
+      integer  i_vy_ray  ,n_vy_ray
+      integer  i_vz_ray  ,n_vz_ray
+      integer  i_ir_tube ,n_ir_tube
+      integer  i_it_tube ,n_it_tube
+      integer  i_is_tube ,n_is_tube
+      integer  n_che_index
+      integer  i_ia_rays,  n_ia_rays
+      integer  i_it_flag,n_it_flag
+      integer  i_ir_flag,n_ir_flag
+      integer  i_ir_pointer, n_ir_pointer
+      integer  i_it_pointer, n_it_pointer
+      integer  i_points,     n_points
+      integer  i_norm_x, n_norm_x
+      integer  i_norm_y, n_norm_y
+      integer  i_norm_z, n_norm_z
+      integer  i_work    ,n_work
+      integer  i_work_i  ,i_work_n
+
+      integer  i,j,k
+
+      integer  num_add, inter_type
+      real     maxangle
+
+      integer  i_call
+      data     i_call/0/
+      i_call = i_call + 1
+
+      m_xyz_tab = 0
+
+c  compute the ray time step length
+      call util_min_max(v_min,v_max,nx_vel*ny_vel*nz_vel,vel)
+
+      mt_micro = t_scale
+      mt_ray   = int((t1_ray-t0_ray)/dt_ray) + 1
+c inter_type indicates interpolation type used in ktime_3d_receiver_4
+c       1--most energetic    2--first arrival
+c       3--shortest raypath  4--smallest maximum velocity
+c       5--longest time      6--longest raypath
+
+      maxangle = maxangle * asin(1.) / 90.
+      maxangle = cos(maxangle)
+
+      if (mt_ray .gt. 1e6)stop
+
+      m_tube = m_ray*2   ! maximum number of ray tubes
+
+c  compute the number of samples in the travel time table
+      m_xyz_tab = iz_tab(ix_tab(ny_tab)+nx_tab(ny_tab))
+     1 + nz_tab(ix_tab(ny_tab)+nx_tab(ny_tab))
+
+c  allocate work space
+      n_a_tab    = m_xyz_tab   !
+      n_b_tab    = m_xyz_tab 
+      n_e2z_tab  = m_xyz_tab 
+      n_x_ray    = m_ray  * 2  ! ray x location
+      n_y_ray    = m_ray  * 2  ! ray x location
+      n_z_ray    = m_ray  * 2  ! ray x location
+      n_px_ray   = m_ray  * 2  ! ray x ray parameter
+      n_py_ray   = m_ray  * 2  ! ray y ray parameter
+      n_pz_ray   = m_ray  * 2  ! ray z ray parameter
+      n_tx_ray   = m_ray  * 2  ! ray propogation direction
+      n_ty_ray   = m_ray  * 2  ! ray propogation direction
+      n_tz_ray   = m_ray  * 2  ! ray propogation direction
+      n_e1x_ray  = m_ray  * 2  ! ray center basis
+      n_e1y_ray  = m_ray  * 2  ! ray center basis
+      n_e1z_ray  = m_ray  * 2  ! ray center basis
+      n_e2x_ray  = m_ray  * 2  ! ray center basis
+      n_e2y_ray  = m_ray  * 2  ! ray center basis
+      n_e2z_ray  = m_ray  * 2  ! ray center basis
+      n_vx_ray   = m_ray  * 2  ! dv / dx
+      n_vy_ray   = m_ray  * 2  ! dv / dy
+      n_vz_ray   = m_ray  * 2  ! dv / dz
+      n_tc_ray   = m_ray  * 2  ! dynamic system
+      n_qq_ray   = m_ray  * 8  ! dynamic system
+      n_hq_ray   = m_ray  * 8  ! dynamic system
+      n_gs_ray   = m_ray  * 2  ! geometrical spreading
+      n_phase_ray= m_ray  * 2  ! phase along rays
+      n_vq11_ray = m_ray  * 2  ! d2v / dq2
+      n_vq12_ray = m_ray  * 2  ! d2v / dq2
+      n_vq22_ray = m_ray  * 2  ! d2v / dq2
+      n_v_ray    = m_ray  * 2  ! ray velocity(x,y,z)
+      n_v_ray_tmp= m_ray       ! ray velocity(x,y,z)
+      n_vmax_ray = m_ray       ! maximum velocity along the rays
+      n_vmax_tab = m_xyz_tab   ! maximum velocity
+      n_det33_tab = m_xyz_tab   ! det33
+      n_s_ray    = m_ray  * 2  ! ray path length
+      n_s_tab    = m_xyz_tab   ! ray path length
+      n_a_ray    = m_ray       ! ray angle a
+      n_b_ray    = m_ray       ! ray angle b
+      n_ir_tube  = m_tube * 3  ! ray tube pointers
+      n_it_tube  = m_tube * 3  ! ray tube pointers
+      n_is_tube  = m_tube * 3  ! ray tube pointers
+      n_che_index= m_tube * 2  ! add tube flag
+      n_it_flag  = m_tube      ! tube boundary flag
+      n_ir_flag   = m_ray      ! live ray flag
+      n_ir_pointer= m_ray      ! pointer to the alive rays
+      n_it_pointer= m_tube     ! pointer to the alive tubes
+      n_points = m_xyz_tab    !
+      n_ia_rays = m_ray * 3   ! add rays index
+      n_norm_x = m_tube *2
+      n_norm_y = m_tube * 2
+      n_norm_z = m_tube * 2
+
+      call util_wors(i_work_i,i_work_n,m_work)
+      call util_work(i_work_i,i_work_n,i_a_tab ,n_a_tab )         
+      call util_work(i_work_i,i_work_n,i_b_tab ,n_b_tab )         
+      call util_work(i_work_i,i_work_n,i_e2z_tab,n_e2z_tab )         
+      call util_work(i_work_i,i_work_n,i_x_ray   ,n_x_ray   )
+      call util_work(i_work_i,i_work_n,i_y_ray   ,n_y_ray   )
+      call util_work(i_work_i,i_work_n,i_z_ray   ,n_z_ray   )
+      call util_work(i_work_i,i_work_n,i_px_ray  ,n_px_ray  )
+      call util_work(i_work_i,i_work_n,i_py_ray  ,n_py_ray  )
+      call util_work(i_work_i,i_work_n,i_pz_ray  ,n_pz_ray  )
+      call util_work(i_work_i,i_work_n,i_tx_ray  ,n_tx_ray  )
+      call util_work(i_work_i,i_work_n,i_ty_ray  ,n_ty_ray  )
+      call util_work(i_work_i,i_work_n,i_tz_ray  ,n_tz_ray  )
+      call util_work(i_work_i,i_work_n,i_e1x_ray  ,n_e1x_ray  )
+      call util_work(i_work_i,i_work_n,i_e1y_ray  ,n_e1y_ray  )
+      call util_work(i_work_i,i_work_n,i_e1z_ray  ,n_e1z_ray  )
+      call util_work(i_work_i,i_work_n,i_e2x_ray  ,n_e2x_ray  )
+      call util_work(i_work_i,i_work_n,i_e2y_ray  ,n_e2y_ray  )
+      call util_work(i_work_i,i_work_n,i_e2z_ray  ,n_e2z_ray  )
+      call util_work(i_work_i,i_work_n,i_a_ray   ,n_a_ray   )
+      call util_work(i_work_i,i_work_n,i_b_ray   ,n_b_ray   )
+      call util_work(i_work_i,i_work_n,i_s_ray   ,n_s_ray   )
+      call util_work(i_work_i,i_work_n,i_s_tab   ,n_s_tab   )
+      call util_work(i_work_i,i_work_n,i_v_ray   ,n_v_ray   )
+      call util_work(i_work_i,i_work_n,i_v_ray_tmp,n_v_ray_tmp)
+      call util_work(i_work_i,i_work_n,i_vmax_ray,n_vmax_ray)
+      call util_work(i_work_i,i_work_n,i_vmax_tab,n_vmax_tab)
+      call util_work(i_work_i,i_work_n,i_det33_tab,n_det33_tab)
+      call util_work(i_work_i,i_work_n,i_vx_ray  ,n_vx_ray  )
+      call util_work(i_work_i,i_work_n,i_vy_ray  ,n_vy_ray  )
+      call util_work(i_work_i,i_work_n,i_vz_ray  ,n_vz_ray  )
+      call util_work(i_work_i,i_work_n,i_tc_ray  ,n_tc_ray  )
+      call util_work(i_work_i,i_work_n,i_qq_ray  ,n_qq_ray  )
+      call util_work(i_work_i,i_work_n,i_hq_ray  ,n_hq_ray  )
+      call util_work(i_work_i,i_work_n,i_gs_ray  ,n_gs_ray  )
+      call util_work(i_work_i,i_work_n,i_phase_ray,n_phase_ray  )
+      call util_work(i_work_i,i_work_n,i_vq11_ray,n_vq11_ray)
+      call util_work(i_work_i,i_work_n,i_vq12_ray,n_vq12_ray)
+      call util_work(i_work_i,i_work_n,i_vq22_ray,n_vq22_ray)
+      call util_work(i_work_i,i_work_n,i_ir_tube ,n_ir_tube )
+      call util_work(i_work_i,i_work_n,i_it_tube ,n_it_tube )
+      call util_work(i_work_i,i_work_n,i_is_tube ,n_is_tube )
+      call util_work(i_work_i,i_work_n,i_ia_rays,n_ia_rays)
+      call util_work(i_work_i,i_work_n,i_it_flag ,n_it_flag )
+      call util_work(i_work_i,i_work_n,i_ir_flag ,n_ir_flag )
+      call util_work(i_work_i,i_work_n,i_it_pointer ,n_it_pointer )
+      call util_work(i_work_i,i_work_n,i_ir_pointer ,n_ir_pointer )
+      call util_work(i_work_i,i_work_n,i_points ,n_points )
+      call util_work(i_work_i,i_work_n,i_norm_x ,n_norm_x )
+      call util_work(i_work_i,i_work_n,i_norm_y ,n_norm_y )
+      call util_work(i_work_i,i_work_n,i_norm_z ,n_norm_z )
+
+      call util_worc(i_work_i,i_work_n,i_err)
+      if (i_err .ne. 0) goto 999
+      call util_worl(i_work_i,i_work_n,n_work)
+      call util_work(i_work_i,i_work_n,i_work,n_work)
+
+c       print'(/,'' memory='',i10,'' max memory='',i10)'
+c    1,n_work,m_work
+
+c  compute travel time table
+c 3d has velocity in vel(1,1,1,1)  
+c        velocity derivatives in  vel(1,1,1,2~10)  
+c 1=velocity, 2=dv/dx, 3=dv/dy, 4=dv/dz,
+c 5=ddv2/dxdy, 6=ddv2/dxdz, 7=ddv2/dydz,
+c 8=ddv2/dxdx, 9=ddv2/dydy, 10=ddv2/dzdz
+
+        print'('' inter_type='',i2)'
+     1,inter_type
+        print*,'1---most energetic'
+        print*,'2---first arrival'
+        print*,'3---shortest raypath'
+        print*,'4---smallest maximum velocity'
+        print*,'5---longest time'
+        print*,'6---longest raypath'
+
+      call ktime_3d_raytrace_0(xs,ys,zs
+     1,ix_tab,nx_tab,x0_tab,dx_tab
+     1       ,ny_tab,y0_tab,dy_tab
+     1,iz_tab,nz_tab,z0_tab,dz_tab
+     1,t_tab
+     1,nx_vel,x0_vel,dx_vel
+     1,ny_vel,y0_vel,dy_vel
+     1,nz_vel,z0_vel,dz_vel
+     1,vel
+     1,m_xyz_tab,m_ray,m_tube
+     1,mt_micro,mt_ray,t0_ray,dt_ray,ds_ray
+     1,dr_ray
+     1,na_ray,a0_ray,da_ray,a1_ray
+     1,nb_ray,b0_ray,db_ray,b1_ray
+     1,v0,vx,vy,vz
+     1,amp_tab,phase_tab
+     1,q11_tab,q12_tab,q21_tab,q22_tab,p3_tab
+     1,work(i_s_tab),work(i_a_tab),work(i_b_tab),work(i_e2z_tab)
+     1,work(i_a_ray ),work(i_b_ray ),work(i_s_ray)
+     1,work(i_x_ray ),work(i_y_ray ),work(i_z_ray )
+     1,work(i_px_ray),work(i_py_ray),work(i_pz_ray)
+     1,work(i_tx_ray),work(i_ty_ray),work(i_tz_ray)
+     1,work(i_e1x_ray),work(i_e1y_ray),work(i_e1z_ray)
+     1,work(i_e2x_ray),work(i_e2y_ray),work(i_e2z_ray)
+     1,work(i_tc_ray)
+     1,work(i_qq_ray),work(i_hq_ray),work(i_gs_ray)
+     1,work(i_phase_ray)
+     1,work(i_v_ray ),work(i_v_ray_tmp),work(i_vq11_ray)
+     1,work(i_vq12_ray),work(i_vq22_ray)
+     1,work(i_vx_ray),work(i_vy_ray),work(i_vz_ray)
+     1,work(i_vmax_ray),work(i_vmax_tab),work(i_det33_tab)
+     1,work(i_ir_tube),work(i_is_tube),work(i_it_tube)
+     1,work(i_points)
+     1,work(i_ia_rays)
+     1,work(i_it_flag),work(i_ir_flag)
+     1,work(i_ir_pointer),work(i_it_pointer)
+     1,work(i_norm_x),work(i_norm_y),work(i_norm_z)
+     1,num_add,inter_type,maxangle
+     1,n_work,work(i_work)
+     1,outt_file,outamp_file
+     1,outpha_file,outq11_file,outq12_file
+     1,outq21_file,outq22_file
+     1,outa0_file,outb0_file,outa1_file,outb1_file
+     1,oute1x_file,oute1y_file,oute1z_file
+     1,oute2x_file,oute2y_file,oute2z_file
+     1,i_err)
+
+      return 
+
+  999 continue
+      print'('' error in ktime_3d_raytrace'')'
+      i_err = -1
+      return
+
+      end subroutine 
+
+c23456789012345678901234567890123456789012345678901234567890123456789012
+
 c23456789012345678901234567890123456789012345678901234567890123456789012
       subroutine ktime_3d_raytrace_shoot_n_step1(
      1 xs,ys,zs
@@ -1574,7 +2027,7 @@ c compute tc_ray_2
       i_err = -1
       return
  
-      end
+      end subroutine 
  
 c23456789012345678901234567890123456789012345678901234567890123456789012
       subroutine ktime_3d_raytrace_shoot_1_step1(
@@ -1896,7 +2349,7 @@ c  compute the new spreading
       i_err = -1
       return
  
-      end
+      end subroutine 
  
 c23456789012345678901234567890123456789012345678901234567890123456789012
       subroutine ktime_3d_raytrace_init_rays1(lu_out
@@ -2107,7 +2560,7 @@ c  set ray parameters
       i_err = -1
       return
 
-      end
+      end subroutine 
 
 c23456789012345678901234567890123456789012345678901234567890123456789012
       subroutine ktime_3d_raytrace_check_tcon(lu_out
@@ -2223,7 +2676,7 @@ c23456789012345678901234567890123456789012345678901234567890123456789012
       i_err = -1
       return
 
-      end
+      end subroutine 
 
 c23456789012345678901234567890123456789012345678901234567890123456789012
       subroutine ktime_3d_raytrace_check_tdir(lu_out
@@ -2456,7 +2909,7 @@ c  each of these should be || to p0
 
       return
 
-      end
+      end subroutine 
 
 c23456789012345678901234567890123456789012345678901234567890123456789012
       subroutine ktime_3d_raytrace_check_tcon_2(
@@ -2549,262 +3002,10 @@ c23456789012345678901234567890123456789012345678901234567890123456789012
       i_err = -1
       return
 
-      end
+      end subroutine 
 
 c23456789012345678901234567890123456789012345678901234567890123456789012
-      subroutine ktime_3d_check_boundary_4(it_ray,xs,ys,zs
-     1,x_min,x_max,y_min,y_max,z_min,z_max
-     1,m_ray,m_tube,n_ray,n_tube
-     1, a_ray, b_ray
-     1, x_ray, y_ray, z_ray, s_ray
-     1,px_ray,py_ray,pz_ray
-     1,tx_ray,ty_ray,tz_ray
-     1,e1x_ray,e1y_ray,e1z_ray
-     1,e2x_ray,e2y_ray,e2z_ray
-     1,tc_ray,qq_ray,hq_ray
-     1,gs_ray,phase_ray
-     1,v_ray,vq11_ray,vq12_ray,vq22_ray
-     1,vx_ray,vy_ray,vz_ray,vmax_ray
-     1,n_inray,n_outray,ir_flag,ir_pointer
-     1,ir_tube,it_tube,is_tube,n_intube,n_outtube
-     1,it_flag,it_pointer
-     1,maxangle
-     1,i_err)
-c  check if rays have left the travel time table area
-c  update index of tubes and rays that are inside the target region
-      implicit none
-      integer  m_ray,m_tube
 
-      integer   it_ray
-      real      xs,ys,zs
-      real      a_ray(m_ray), b_ray(m_ray), s_ray(m_ray)
-      real      x_ray(m_ray), y_ray(m_ray), z_ray(m_ray)
-      real     px_ray(m_ray),py_ray(m_ray),pz_ray(m_ray)
-      real     tx_ray(m_ray),ty_ray(m_ray),tz_ray(m_ray)
-      real     e1x_ray(m_ray),e1y_ray(m_ray),e1z_ray(m_ray)
-      real     e2x_ray(m_ray),e2y_ray(m_ray),e2z_ray(m_ray)
-      real     tc_ray(m_ray), qq_ray(4,m_ray), hq_ray(4,m_ray)
-      real     gs_ray(m_ray), phase_ray(m_ray)
-      real      v_ray(m_ray), vq11_ray(m_ray), vq12_ray(m_ray)
-      real     vq22_ray(m_ray), vmax_ray(m_ray)
-      real     vx_ray(m_ray), vy_ray(m_ray), vz_ray(m_ray)
-      integer  ir_flag(m_ray)
-      integer  ir_pointer(m_ray)
-      integer  ir_tube(3,m_tube)
-      integer  it_tube(3,m_tube)
-      integer  is_tube(3,m_tube)
-      integer  it_flag(m_tube)
-      integer  it_pointer(m_tube)
-      integer  n_ray,n_tube
- 
-      integer  i,n_inray,n_inray_2,n_outray,i_inray
-      integer  i_intube,n_intube,n_intube_2
-      integer  n_outtube
-      real     x_min,x_max,y_min,y_max,z_min,z_max
-      integer  i1,i2,i3,j_bound,i_tube
-      real     u(3,3)
-
-      real     maxangle, maxang_tmp
- 
-      integer  i_err
-      call util_seti(n_inray,ir_flag,-1)
-      call util_seti(n_intube,it_flag,-1)
-
-      maxang_tmp=cos(3.1416/2.0)
-
-      n_intube_2 = n_intube
-      n_intube= 0
-      do i_tube =1, n_intube_2
-
-         i1 = ir_tube(1,i_tube)
-         i2 = ir_tube(2,i_tube)
-         i3 = ir_tube(3,i_tube)
-
-         u(1,1) = x_ray(i1)
-         u(2,1) = y_ray(i1)
-         u(3,1) = z_ray(i1)
-         u(1,2) = x_ray(i2)
-         u(2,2) = y_ray(i2)
-         u(3,2) = z_ray(i2)
-         u(1,3) = x_ray(i3)
-         u(2,3) = y_ray(i3)
-         u(3,3) = z_ray(i3)
-
-         j_bound = 0
-         do i = 1,3
-
-            if (u(1,i) .ge. x_min .and. u(1,i) .le. x_max
-     1   .and.  u(2,i) .ge. y_min .and. u(2,i) .le. y_max
-     1   .and.  u(3,i) .ge. z_min .and. u(3,i) .le. z_max)
-     1      then
-            j_bound = j_bound + 1
-            endif !  if (u(1,i) .lt.
-
-         enddo ! do i = 1,3
-
-         if (j_bound .eq. 0) then
-
-            n_outtube = n_outtube +1
-
-         elseif (pz_ray(i1)*v_ray(i1) .lt.  maxangle
-     1  .and. pz_ray(i2)*v_ray(i2) .lt. maxangle 
-     1  .and. pz_ray(i3)*v_ray(i3) .lt. maxangle ) then
-
-            n_outtube = n_outtube +1
-
-         elseif ( u(3,1) .gt. 1800 .and. u(3,2) .gt. 1800.0
-     1  .and. u(3,3) .gt. 1800 .and.
-     1     pz_ray(i1)*v_ray(i1) .lt.  maxang_tmp
-     1  .and. pz_ray(i2)*v_ray(i2) .lt. maxang_tmp 
-     1  .and. pz_ray(i3)*v_ray(i3) .lt. maxang_tmp ) then
-
-            n_outtube = n_outtube +1
-
-          else
-
-            ir_flag(i1) = 1
-            ir_flag(i2) = 1
-            ir_flag(i3) = 1
-
-            n_intube = n_intube +1
-            it_flag(i_tube) = i_tube - n_intube
-
-         endif ! if (j_bound .ge. 0) then
-
-
-      enddo ! do i_tube =1, n_intube
-
-      n_inray_2 = n_inray
-      n_inray = 0
-      do i =1, n_inray_2
- 
-         if (ir_flag(i) .ne. -1) then
-           n_inray = n_inray +1 
-           ir_pointer(n_inray) = i
-           ir_flag(i) = i - n_inray
-          
-         endif !if (ir_flag(i) .eq. 1) then
- 
-      enddo ! do i =1, n_ray
-      n_outray = n_inray_2 - n_inray
- 
-      do i_tube =1, n_intube_2
-
-         if (it_flag(i_tube) .ge. 0) then
-
-            i_intube = i_tube-it_flag(i_tube)
-
-            i1 = it_tube(1,i_tube)
-            i2 = it_tube(2,i_tube)
-            i3 = it_tube(3,i_tube)
-
-            if (it_flag(i1) .ge. 0 ) then 
-	       it_tube(1,i_intube) = i1 - it_flag(i1)
-               is_tube(1,i_intube) = is_tube(1,i_tube) 
-            else
-               it_tube(1,i_intube) = -1
-               is_tube(1,i_intube) = -1
-            endif !if (it_flag(i1) .ne. -1) then
-
-            if (it_flag(i2) .ge. 0) then 
-               it_tube(2,i_intube) = i2 - it_flag(i2)
-               is_tube(2,i_intube) = is_tube(2,i_tube) 
-            else
-               it_tube(2,i_intube) = -1
-               is_tube(2,i_intube) = -1
-            endif !if (it_flag(i2) .ne. -1) then
-
-            if (it_flag(i3) .ge. 0) then 
-               it_tube(3,i_intube) = i3 - it_flag(i3)
-               is_tube(3,i_intube) = is_tube(3,i_tube) 
-            else
-               it_tube(3,i_intube) = -1
-               is_tube(3,i_intube) = -1
-            endif !if (it_flag(i3) .ne. -1) then
-
-            i1 = ir_tube(1,i_tube)
-            i2 = ir_tube(2,i_tube)
-            i3 = ir_tube(3,i_tube)
-            
-	    if (ir_flag(i1) .ne. -1) then 
-              ir_tube(1,i_intube) = i1 - ir_flag(i1)
-            else
-              ir_tube(1,i_intube) = -1
-              print*,'ir_tube error at ',i_tube, i1
-            endif !if (ir_flag(ir_tube(1,i_tube)) .ne. -1) then
-
-            if (ir_flag(i2) .ne. -1) then 
-              ir_tube(2,i_intube) = i2 - ir_flag(i2)
-            else
-              ir_tube(2,i_intube) = -1
-              print*,'ir_tube error at ',i_tube, i2
-            endif !if (ir_flag(ir_tube(2,i_tube)) .ne. -1) then
-
-            if (ir_flag(i3) .ne. -1) then 
-              ir_tube(3,i_intube) = i3 - ir_flag(i3)
-            else
-              ir_tube(3,i_intube) = -1
-              print*,'ir_tube error at ',i_tube, i3
-            endif !if (ir_flag(ir_tube(3,i_tube)) .ne. -1) then
-
-         endif !if (it_flag(i_tube) .gt. 0) then
-
-      enddo !do i_tube =1, n_intube_2
-
-      do i =1, n_inray_2
- 
-         if (ir_flag(i) .gt. 0) then
-
-           i_inray = i - ir_flag(i)
-
-	   a_ray(i_inray) = a_ray(i)
-	   b_ray(i_inray) = b_ray(i)
-	   x_ray(i_inray) = x_ray(i)
-	   y_ray(i_inray) = y_ray(i)
-	   z_ray(i_inray) = z_ray(i)
-	   s_ray(i_inray) = s_ray(i)
-	   px_ray(i_inray) = px_ray(i)
-	   py_ray(i_inray) = py_ray(i)
-	   pz_ray(i_inray) = pz_ray(i)
-	   tx_ray(i_inray) = tx_ray(i)
-	   ty_ray(i_inray) = ty_ray(i)
-	   tz_ray(i_inray) = tz_ray(i)
-	   e1x_ray(i_inray) = e1x_ray(i)
-	   e1y_ray(i_inray) = e1y_ray(i)
-	   e1z_ray(i_inray) = e1z_ray(i)
-	   e2x_ray(i_inray) = e2x_ray(i)
-	   e2y_ray(i_inray) = e2y_ray(i)
-	   e2z_ray(i_inray) = e2z_ray(i)
-	   tc_ray(i_inray) = tc_ray(i)
-	   qq_ray(1,i_inray) = qq_ray(1,i)
-	   qq_ray(2,i_inray) = qq_ray(2,i)
-	   qq_ray(3,i_inray) = qq_ray(3,i)
-	   qq_ray(4,i_inray) = qq_ray(4,i)
-	   hq_ray(1,i_inray) = hq_ray(1,i)
-	   hq_ray(2,i_inray) = hq_ray(2,i)
-	   hq_ray(3,i_inray) = hq_ray(3,i)
-	   hq_ray(4,i_inray) = hq_ray(4,i)
-	   gs_ray(i_inray) = gs_ray(i)
-	   phase_ray(i_inray) = phase_ray(i)
-	   v_ray(i_inray) = v_ray(i)
-	   vq11_ray(i_inray) = vq11_ray(i)
-	   vq12_ray(i_inray) = vq12_ray(i)
-	   vq22_ray(i_inray) = vq22_ray(i)
-	   vx_ray(i_inray) = vx_ray(i)
-	   vy_ray(i_inray) = vy_ray(i)
-	   vz_ray(i_inray) = vz_ray(i)
-	   vmax_ray(i_inray) = vmax_ray(i)
-	   
-         endif !if (ir_flag(i) .eq. 1) then
- 
-      enddo ! do i =1, n_ray
-
-      call ktime_3d_raytrace_check_tcon_2(
-     1 it_ray,n_intube_2,n_intube,ir_tube,is_tube,it_tube,it_flag
-     1,i_err)
-      return
- 
-      end
 
 c23456789012345678901234567890123456789012345678901234567890123456789012
       subroutine ktime_3d_fill_points(
@@ -3047,7 +3248,8 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c     print'('' unset points:'',i8)',i_unset
 
       return
-      end
+      end subroutine 
+      
 c23456789012345678901234567890123456789012345678901234567890123456789012
       subroutine ktime_3d_raytrace_gaussj(a,n,np,b,m,mp)
       implicit none
@@ -3096,7 +3298,8 @@ c23456789012345678901234567890123456789012345678901234567890123456789012
       b(2) = b2
 
       return
-      end
+      end subroutine 
+      
 c23456789012345678901234567890123456789012345678901234567890123456789012
       subroutine ktime_3d_raytrace_gaussj_0(a,n,np,b,m,mp)
       implicit none
@@ -3193,7 +3396,7 @@ c23456789012345678901234567890123456789012345678901234567890123456789012
       enddo ! do l=1,3,-1 
 
       return
-      end
+      end subroutine 
 c23456789012345678901234567890123456789012345678901234567890123456789012
       subroutine ktime_3d_raytrace_intube_4(
      1 on_flag,x,y,z
@@ -3301,7 +3504,7 @@ c              1 ---ready for the further checking.
  
       return
  
-      end
+      end subroutine 
 c23456789012345678901234567890123456789012345678901234567890123456789012
       subroutine ktime_3d_raytrace_intersect_2(
      1 x1,y1,z1,px1,py1,pz1,px2,py2,pz2
@@ -3357,7 +3560,8 @@ c23456789012345678901234567890123456789012345678901234567890123456789012
       endif ! if (abs(t1) .ge. 0.1) then
 
       return
-      end
+      end subroutine 
+      
 c23456789012345678901234567890123456789012345678901234567890123456789012
       subroutine ktime_3d_raytrace_crossproduct(
      1 n_cross
@@ -3394,7 +3598,7 @@ c23456789012345678901234567890123456789012345678901234567890123456789012
       enddo ! do i = 1, n_cross
 
       return
-      end
+      end subroutine 
 c23456789012345678901234567890123456789012345678901234567890123456789012
       subroutine ktime_3d_raytrace_crosspro_2(
      1 n_tube, n_intube, it_pointer, it_flag, ir_tube
@@ -3448,7 +3652,7 @@ c23456789012345678901234567890123456789012345678901234567890123456789012
       enddo !do i_intube = 1, n_intube
 
       return
-      end
+      end  subroutine 
 c23456789012345678901234567890123456789012345678901234567890123456789012
       subroutine ktime_3d_raytrace_is_cross(
      1 n_tube, n_intube, ir_tube
@@ -3520,7 +3724,7 @@ c23456789012345678901234567890123456789012345678901234567890123456789012
 	enddo !do i_intube = 1, n_intube
 
       return
-      end
+      end subroutine 
 c23456789012345678901234567890123456789012345678901234567890123456789012
       subroutine ktime_3d_receiver_4(it_ray,xs,ys,zs,vs
      1,inter_type,m_xyz,points
@@ -4112,7 +4316,7 @@ c    1            + phase_ray_2(i3)*v_2)*0.5
       enddo ! do i_bound = 1, n_intube
 
       return
-      end
+      end subroutine 
 c23456789012345678901234567890123456789012345678901234567890123456789012
       subroutine ktime_3d_raytrace_init_ab_1(lu_out
      1,xs,ys,zs
@@ -4388,7 +4592,7 @@ c     if (i_err .ne. 0) goto 999
       i_err = -1
       return
 
-      end
+      end subroutine 
 
 c23456789012345678901234567890123456789012345678901234567890123456789012
       subroutine ktime_write_outputs(xs,ys,zs
@@ -4480,7 +4684,7 @@ c23456789012345678901234567890123456789012345678901234567890123456789012
       print'('' iy1='',i4)',iy1
       return
 
-      end
+      end subroutine 
 
 
 c23456789012345678901234567890123456789012345678901234567890123456789012
@@ -4524,7 +4728,7 @@ c Create output file and open as old
       enddo 
 
       return
-      end
+      end subroutine 
 
 c23456789012345678901234567890123456789012345678901234567890123456789012
       subroutine ktime_3d_add_1_ray_2(
@@ -4730,7 +4934,7 @@ c pad the added new rays
       i_err = -1
       return
 
-      end
+      end subroutine 
 
 c23456789012345678901234567890123456789012345678901234567890123456789012
       subroutine ktime_3d_raytrace_add_tubes_2(
@@ -4929,7 +5133,7 @@ c  update the ray and ray tube index caused by the new introduced rays
 
       return
 
-      end
+      end subroutine 
 c23456789012345678901234567890123456789012345678901234567890123456789012
       subroutine ktime_3d_raytrace_add_rays_2(
      1 lu_out,it_ray,ds_max,xs,ys,zs
@@ -5175,7 +5379,7 @@ c     if (i_err .ne. 0) goto 999
       i_err = -1
       return
  
-      end
+      end subroutine 
 c23456789012345678901234567890123456789012345678901234567890123456789012
       subroutine ktime_3d_compute_v_grad_4(n_xyz,n_inray,ir_pointer
      1,z0,x0,y0
@@ -5375,7 +5579,8 @@ c  compute v0, dvdx, dvdy, dvdz from velocity
       i_err = -1
       return
 
-      end
+      end subroutine 
+      
 c23456789012345678901234567890123456789012345678901234567890123456789012
       subroutine ktime_3d_compute_v_grad_5(n_xyz,n_add,ia_rays
      1,z0,x0,y0
@@ -5576,195 +5781,9 @@ c  compute v0, dvdx, dvdy, dvdz from velocity
       i_err = -1
       return
 
-      end
+      end subroutine 
 c23456789012345678901234567890123456789012345678901234567890123456789012
-      subroutine ktime_3d_compute_v_grad_1(
-     1 xs,ys,zs
-     1,n_xyz
-     1,z0,x0,y0
-     1,pz,px,py
-     1,nz_vel,z0_vel,dz_vel
-     1,nx_vel,x0_vel,dx_vel
-     1,ny_vel,y0_vel,dy_vel
-     1,vcof
-     1,vfun,dvdz,dvdx,dvdy,dvdq11,dvdq12,dvdq22
-     1,m_work,work
-     1,i_err
-     1)
-c--------------------------------------------------------------
-c     Purpose:
-c              Special constant velocity gradient version
-c              Find velocity and some of the derivatives from the
-c              model.
-c--------------------------------------------------------------
-c     Input :
-c             z0 - z location
-c             x0 - x location
-c             y0 - y location
-c             pz - z ray parameter
-c             px - x ray parameter
-c             py - y ray parameter
-c--------------------------------------------------------------
-c     Output :
-c             vfun - velocity function
-c             dvdz - 1st derivative with respect to global z.
-c             dvdx - 1st derivative with respect to global x
-c             dvdy - 1st derivative with respect to global y
-c             dvdq - 2nd derivative with respect to ray centred
-c                      coordinate.
-c  right now set v0,xc,yc,zc,vx,vy,vz using the first nodes of vcof
-c  v(x,y,z) = v0 + vx*(x-xc) + vy*(y-yc) + vz*(z-zc)
-c  dvdx = vx
-c  dvdy = vy
-c  dvdz = vz
-c  dvdq = 0.
-c--------------------------------------------------------------
- 
-      implicit none
 
-      real     xs,ys,zs
- 
-      integer  n_xyz
-      real     x0(n_xyz),y0(n_xyz),z0(n_xyz)
-      real     px(n_xyz),py(n_xyz),pz(n_xyz)
- 
-      integer  nx_vel
-      real     x0_vel,dx_vel
- 
-      integer  ny_vel
-      real     y0_vel,dy_vel
- 
-      integer  nz_vel
-      real     z0_vel,dz_vel
- 
-      real     vcof(nz_vel,nx_vel,ny_vel,10)
-
-      real     vfun(n_xyz)
-      real     dvdx(n_xyz)
-      real     dvdy(n_xyz)
-      real     dvdz(n_xyz)
-      real     dvdq11(n_xyz)
-      real     dvdq12(n_xyz)
-      real     dvdq22(n_xyz)
-
-      integer  m_work
-      real     work(m_work)
- 
-      integer  i_err
- 
-      integer  i_xyz
-
-      integer  ix,iy,iz
-      real     xf,yf,zf
-      real     cq(3,3)   !   dx_i/dq_j
- 
-      real     v_xy,v_xy_eps
-
-      integer  i_call
-      data     i_call/0/
-      data     v_xy_eps/1.e-6/
-      i_call = i_call + 1
- 
-c  compute v0, dvdx, dvdy, dvdz from velocity
-
-      i_err = 0
-
-      do i_xyz = 1 , n_xyz
-
-        ix = max(1,min(nx_vel-1,int((x0(i_xyz)-x0_vel)/dx_vel)+2))
-
-        iy = max(1,min(ny_vel-1,int((y0(i_xyz)-y0_vel)/dy_vel)+2))
- 
-        iz = max(1,min(nz_vel-1,int((z0(i_xyz)-z0_vel)/dz_vel)+2))
- 
-        xf = max(0.,min(1.
-     1,(x0(i_xyz)-(ix-2)*dx_vel-x0_vel)/dx_vel))
-
-        yf = max(0.,min(1.
-     1,(y0(i_xyz)-(iy-2)*dy_vel-y0_vel)/dy_vel))
- 
-        zf = max(0.,min(1.
-     1,(z0(i_xyz)-(iz-2)*dz_vel-z0_vel)/dz_vel))
-
-        vfun(i_xyz) =   yf * (xf * ( zf * vcof(iz,ix,iy,1)
-     1+                   (1-zf)*vcof(max(1,iz-1),ix,iy,1)) 
-     1+          (1-xf) * ( zf * vcof(iz,max(1,ix-1),iy,1) 
-     1+          (1-zf)*vcof(max(1,iz-1),max(1,ix-1),iy,1)))
-     1+     (1-yf) *(xf * ( zf * vcof(iz,ix,max(1,iy-1),1) 
-     1+          (1-zf)*vcof(max(1,iz-1),ix,max(1,iy-1),1)) 
-     1+ (1-xf) * ( zf * vcof(iz,max(1,ix-1),max(1,iy-1),1) 
-     1+ (1-zf)*vcof(max(1,iz-1),max(1,ix-1),max(1,iy-1),1)))
-
-        dvdx(i_xyz) =   yf * (xf * ( zf * vcof(iz,ix,iy,2)
-     1+                   (1-zf)*vcof(max(1,iz-1),ix,iy,2))
-     1+          (1-xf) * ( zf * vcof(iz,max(1,ix-1),iy,2)
-     1+          (1-zf)*vcof(max(1,iz-1),max(1,ix-1),iy,2)))
-     1+     (1-yf) *(xf * ( zf * vcof(iz,ix,max(1,iy-1),2)
-     1+          (1-zf)*vcof(max(1,iz-1),ix,max(1,iy-1),2))
-     1+ (1-xf) * ( zf * vcof(iz,max(1,ix-1),max(1,iy-1),2)
-     1+ (1-zf)*vcof(max(1,iz-1),max(1,ix-1),max(1,iy-1),2)))
-
-
-        dvdy(i_xyz) =   yf * (xf * ( zf * vcof(iz,ix,iy,3)
-     1+                   (1-zf)*vcof(max(1,iz-1),ix,iy,3))
-     1+          (1-xf) * ( zf * vcof(iz,max(1,ix-1),iy,3)
-     1+          (1-zf)*vcof(max(1,iz-1),max(1,ix-1),iy,3)))
-     1+     (1-yf) *(xf * ( zf * vcof(iz,ix,max(1,iy-1),3)
-     1+          (1-zf)*vcof(max(1,iz-1),ix,max(1,iy-1),3))
-     1+ (1-xf) * ( zf * vcof(iz,max(1,ix-1),max(1,iy-1),3)
-     1+ (1-zf)*vcof(max(1,iz-1),max(1,ix-1),max(1,iy-1),3)))
-
-
-        dvdz(i_xyz) =   yf * (xf * ( zf * vcof(iz,ix,iy,4)
-     1+                   (1-zf)*vcof(max(1,iz-1),ix,iy,4))
-     1+          (1-xf) * ( zf * vcof(iz,max(1,ix-1),iy,4)
-     1+          (1-zf)*vcof(max(1,iz-1),max(1,ix-1),iy,4)))
-     1+     (1-yf) *(xf * ( zf * vcof(iz,ix,max(1,iy-1),4)
-     1+          (1-zf)*vcof(max(1,iz-1),ix,max(1,iy-1),4))
-     1+ (1-xf) * ( zf * vcof(iz,max(1,ix-1),max(1,iy-1),4)
-     1+ (1-zf)*vcof(max(1,iz-1),max(1,ix-1),max(1,iy-1),4)))
-
-        v_xy = 1. / max(v_xy_eps,
-     1sqrt(px(i_xyz)*px(i_xyz)+py(i_xyz)*py(i_xyz))) ! alpha cann't be 0 or pi 
-        
-        cq(1,1) = v_xy * py(i_xyz)
-        cq(2,1) = -v_xy * px(i_xyz)
-        cq(3,1) = 0
-        cq(1,2) = vcof(iz,ix,iy,1) *pz(i_xyz) *v_xy *px(i_xyz)
-        cq(2,2) = vcof(iz,ix,iy,1) *pz(i_xyz) *v_xy *py(i_xyz)
-        cq(3,2) = -vcof(iz,ix,iy,1) / v_xy
-
-        dvdq11(i_xyz) = vcof(iz,ix,iy,8)*cq(1,1)*cq(1,1)
-     1+vcof(iz,ix,iy,9)*cq(2,1)*cq(2,1) 
-     1+vcof(iz,ix,iy,10)*cq(3,1)*cq(3,1)
-     1+ 2 * ( vcof(iz,ix,iy,5)*cq(1,1)*cq(2,1) 
-     1+vcof(iz,ix,iy,6)*cq(1,1)*cq(3,1)
-     1+vcof(iz,ix,iy,7)*cq(2,1)*cq(3,1)) 
-
-        dvdq12(i_xyz) = vcof(iz,ix,iy,8)*cq(1,1)*cq(1,2)
-     1+vcof(iz,ix,iy,9)*cq(2,1)*cq(2,2) 
-     1+vcof(iz,ix,iy,10)*cq(3,1)*cq(3,2)     
-     1+vcof(iz,ix,iy,5)* (cq(1,2)*cq(2,1) + cq(1,1)*cq(2,2))
-     1+vcof(iz,ix,iy,6)* (cq(1,3)*cq(3,2) + cq(1,2)*cq(3,1))
-     1+vcof(iz,ix,iy,7)* (cq(2,1)*cq(3,2) + cq(2,2)*cq(3,1))
-
-        dvdq22(i_xyz) = vcof(iz,ix,iy,8)*cq(1,2)*cq(1,2)
-     1+vcof(iz,ix,iy,9)*cq(2,2)*cq(2,2) 
-     1+vcof(iz,ix,iy,10)*cq(3,2)*cq(3,2)     
-     1+ 2 * ( vcof(iz,ix,iy,5)*cq(1,2)*cq(2,2) 
-     1+vcof(iz,ix,iy,6)*cq(1,2)*cq(3,2)
-     1+vcof(iz,ix,iy,7)*cq(2,2)*cq(3,2)) 
-   
- 
-      enddo    ! do i_xyz = 1 , n_xyz
-
-      return
- 
-  999 continue
-      print'(/,'' error in ktime_3d_compute_v_grad'')'
-      i_err = -1
-      return
-      end 
 c23456789012345678901234567890123456789012345678901234567890123456789012
       subroutine ktime_3d_compute_v_grad_coef(
      1 nz_vel,z0_vel,dz_vel
@@ -5894,7 +5913,7 @@ c  d2v / dz2
  
       return
  
-      end
+      end subroutine 
 
 c23456789012345678901234567890123456789012345678901234567890123456789012
       subroutine ktime_3d_raytrace_init_addray(lu_out
@@ -6093,7 +6112,7 @@ c  compute the velocity at the source location
       i_err = -1
       return
 
-      end
+      end subroutine 
 
 c23456789012345678901234567890123456789012345678901234567890123456789012
       subroutine ktime_3d_raytrace_shoot_n_add(
@@ -6349,7 +6368,7 @@ c compute tc_ray_2
       i_err = -1
       return
  
-      end
+      end subroutine 
  
 c23456789012345678901234567890123456789012345678901234567890123456789012
       subroutine ktime_3d_raytrace_shoot_1_add(
@@ -6664,7 +6683,7 @@ c  compute the new spreading
       i_err = -1
       return
  
-      end
+      end subroutine 
  
 c23456789012345678901234567890123456789012345678901234567890123456789012
       subroutine ktime_3d_raytrace_add_shoot(xs,ys,zs
@@ -6848,6 +6867,10 @@ c  the next step will be in i_ray_2
       i_err = -1
       return
 
-      end
+      end subroutine 
 
+
+
+      
+      end module 
 
