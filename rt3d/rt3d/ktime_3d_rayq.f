@@ -734,6 +734,11 @@ c  update index of tubes and rays that are inside the target region
       real     maxangle, maxang_tmp
  
       integer  i_err
+      
+      write(*,*) "m_tube=", m_tube
+      write(*,*) "it_flag(1:10)=",it_flag(1:10)
+      
+      
       call util_seti(n_inray,ir_flag,-1)
       call util_seti(n_intube,it_flag,-1)
 
