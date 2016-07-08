@@ -49,17 +49,11 @@ contains
 		real(wp)::x(3),y(3)
 		real(wp)::t
 		
-		t=x(1)
-		x(1)=y(1)
-		y(1)=t
+		t=x(1);	x(1)=y(1);	y(1)=t
 		
-		t=x(2)
-		x(2)=y(2)
-		y(2)=t
+		t=x(2);	x(2)=y(2);	y(2)=t
 		
-		t=x(3)
-		x(3)=y(3)
-		y(3)=t
+		t=x(3);	x(3)=y(3);	y(3)=t
 		
 	end subroutine 
 	

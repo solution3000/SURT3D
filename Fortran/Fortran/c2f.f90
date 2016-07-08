@@ -1,12 +1,12 @@
-    !
-    !  C ºÍ FortranµÄ»¥Ïàµ÷ÓÃ
+ï»¿    !
+    !  C å’Œ Fortrançš„äº’ç›¸è°ƒç”¨
     !
     
     
     
 module cstr
 
-    contains
+contains
 
     function c_to_f_string(s) result(str)
         use iso_c_binding
