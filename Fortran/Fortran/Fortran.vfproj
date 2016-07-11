@@ -29,6 +29,7 @@
 		<Filter Name="Source Files" Filter="f90;for;f;fpp;ftn;def;odl;idl">
 		<File RelativePath=".\c2f.f90"/>
 		<File RelativePath=".\Fortran.f90"/>
-		<File RelativePath=".\ray.f90"/></Filter>
+		<File RelativePath=".\ray.f90"/>
+		<File RelativePath=".\rt3d_mod.f90"/></Filter>
 		<File RelativePath=".\ReadMe.txt"/></Files>
 	<Globals/></VisualStudioProject>
